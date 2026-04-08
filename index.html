@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalPulse — Discover Local Businesses</title>
+    <style>
+        /* ── RESET & BASE ── */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #4F46E5;
+            --primary-dark: #3730A3;
+            --accent: #F59E0B;
+            --bg: #F9FAFB;
+            --card: #FFFFFF;
+            --text: #1F2937;
+            --muted: #6B7280;
+            --radius: 12px;
+        }
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: var(--text); background: var(--bg); line-height: 1.6; }
+        a { text-decoration: none; color: inherit; }
+        img { max-width: 100%; display: block; }
+        .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+
+        /* ── NAV ── */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(255,255,255,.85); backdrop-filter: blur(12px);
+            border-bottom: 1px solid #E5E7EB;
+            padding: 16px 0; transition: box-shadow .3s;
+        }
+        nav.scrolled { box-shadow: 0 4px 20px rgba(0,0,0,.06); }
+        nav .container { display: flex; align-items: center; justify-content: space-between; }
+        .logo { font-size: 1.5rem; font-weight: 800; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+        .logo span { color: var(--accent); }
+        .nav-links { display: flex; gap: 28px; align-items: center; }
+        .nav-links a { font-weight: 500; color: var(--muted); transition: color .2s; }
+        .nav-links a:hover { color: var(--primary); }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 24px; border-radius: 8px; font-weight: 600;
+            font-size: .95rem; cursor: pointer; transition: all .25s; border: none;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(79,70,229,.35); }
+        .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-outline:hover { background: var(--primary); color: #fff; }
+        .btn-accent { background: var(--accent); color: #fff; }
+        .btn-accent:hover { background: #D97706; }
+
+        /* ── HERO ── */
+        .hero {
+            padding: 160px 0 100px;
+            background: linear-gradient(135deg, #EEF2FF 0%, #FDF4FF 50%, #FEF3C7 100%);
+            text-align: center; position: relative; overflow: hidden;
+        }
+        .hero::before {
+            content: ''; position: absolute; width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(79,70,229,.08), transparent 70%);
+            top: -200px; right: -100px; border-radius: 50%;
+        }
+        .hero h1 { font-size: 3.2rem; font-weight: 800; line-height: 1.15; max-width: 700px; margin: 0 auto 20px; }
+        .hero h1 .highlight { background: linear-gradient(90deg, var(--primary), #7C3AED); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 1.2rem; color: var(--muted); max-width: 560px; margin: 0 auto 36px; }
+
+        /* Search bar */
+        .search-box {
+            display: flex; max-width: 640px; margin: 0 auto 24px;
+            background: var(--card); border-radius: 60px; overflow: hidden;
+            box-shadow: 0 8px 30px rgba(0,0,0,.08); border: 2px solid #E5E7EB;
+        }
+        .search-box input {
+            flex: 1; padding: 16px 24px; border: none; outline: none;
+            font-size: 1rem; background: transparent; color: var(--text);
+        }
+        .search-box button {
+            padding: 14px 32px; background: var(--primary); color: #fff;
+            border: none; font-size: 1rem; font-weight: 600; cursor: pointer;
+            border-radius: 60px; margin: 4px; transition: background .2s;
+        }
+        .search-box button:hover { background: var(--primary-dark); }
+        .hero-tags { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+        .hero-tags span { background: rgba(79,70,229,.08); color: var(--primary); padding: 6px 16px; border-radius: 20px; font-size: .85rem; font-weight: 500; }
+
+        /* ── STATS BAR ── */
+        .stats-bar {
+            background: var(--primary); color: #fff; padding: 40px 0;
+        }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center; }
+        .stat-item h3 { font-size: 2.2rem; font-weight: 800; }
+        .stat-item p { font-size: .9rem; opacity: .8; margin-top: 4px; }
+
+        /* ── SECTION STYLING ── */
+        section { padding: 80px 0; }
+        .section-label { text-transform: uppercase; font-size: .8rem; font-weight: 700; color: var(--primary); letter-spacing: 2px; margin-bottom: 8px; }
+        .section-title { font-size: 2.2rem; font-weight: 800; margin-bottom: 12px; }
+        .section-subtitle { font-size: 1.05rem; color: var(--muted); max-width: 560px; margin-bottom: 48px; }
+        .text-center { text-align: center; }
+        .text-center .section-subtitle { margin-left: auto; margin-right: auto; }
+
+        /* ── CATEGORIES ── */
+        .categories-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+        .category-card {
+            background: var(--card); border-radius: var(--radius); padding: 28px 20px;
+            text-align: center; border: 2px solid #F3F4F6; transition: all .25s; cursor: pointer;
+        }
+        .category-card:hover { border-color: var(--primary); transform: translateY(-4px); box-shadow: 0 12px 24px rgba(79,70,229,.1); }
+        .category-icon { font-size: 2.2rem; margin-bottom: 12px; }
+        .category-card h4 { font-size: .95rem; font-weight: 600; }
+        .category-card p { font-size: .8rem; color: var(--muted); margin-top: 4px; }
+
+        /* ── LISTINGS ── */
+        .listings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+        .listing-card {
+            background: var(--card); border-radius: var(--radius); overflow: hidden;
+            border: 1px solid #E5E7EB; transition: all .25s;
+        }
+        .listing-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,.08); }
+        .listing-img {
+            height: 180px; background-size: cover; background-position: center; position: relative;
+        }
+        .listing-badge {
+            position: absolute; top: 12px; left: 12px; background: var(--accent);
+            color: #fff; font-size: .75rem; font-weight: 700; padding: 4px 12px;
+            border-radius: 20px; text-transform: uppercase; letter-spacing: .5px;
+        }
+        .listing-body { padding: 20px; }
+        .listing-body h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
+        .listing-meta { display: flex; gap: 12px; color: var(--muted); font-size: .85rem; margin-bottom: 10px; }
+        .stars { color: var(--accent); letter-spacing: 1px; }
+        .listing-body p { font-size: .9rem; color: var(--muted); }
+        .listing-tags { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+        .listing-tags span { background: #F3F4F6; padding: 4px 12px; border-radius: 6px; font-size: .78rem; font-weight: 500; color: var(--muted); }
+
+        /* ── HOW IT WORKS ── */
+        .steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+        .step-card { text-align: center; padding: 32px 24px; }
+        .step-number {
+            width: 56px; height: 56px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #7C3AED);
+            color: #fff; font-size: 1.3rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 20px;
+        }
+        .step-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 8px; }
+        .step-card p { font-size: .92rem; color: var(--muted); }
+
+        /* ── REVENUE MODEL (Partner Section) ── */
+        .revenue-section { background: linear-gradient(135deg, #1E1B4B, #312E81); color: #fff; }
+        .revenue-section .section-label { color: var(--accent); }
+        .revenue-section .section-subtitle { color: rgba(255,255,255,.7); }
+        .revenue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 24px; }
+        .revenue-card {
+            background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+            border-radius: var(--radius); padding: 28px; transition: all .25s;
+        }
+        .revenue-card:hover { background: rgba(255,255,255,.12); transform: translateY(-2px); }
+        .revenue-icon { font-size: 2rem; margin-bottom: 14px; }
+        .revenue-card h4 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+        .revenue-card p { font-size: .88rem; color: rgba(255,255,255,.65); line-height: 1.6; }
+        .revenue-card .revenue-amount { font-size: 1.5rem; font-weight: 800; color: var(--accent); margin-top: 12px; }
+
+        /* ── PRICING ── */
+        .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 900px; margin: 0 auto; }
+        .pricing-card {
+            background: var(--card); border-radius: var(--radius); padding: 36px 28px;
+            border: 2px solid #E5E7EB; text-align: center; transition: all .25s; position: relative;
+        }
+        .pricing-card.popular { border-color: var(--primary); transform: scale(1.04); box-shadow: 0 16px 48px rgba(79,70,229,.15); }
+        .popular-tag {
+            position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+            background: var(--primary); color: #fff; font-size: .75rem; font-weight: 700;
+            padding: 4px 20px; border-radius: 20px; text-transform: uppercase;
+        }
+        .pricing-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+        .pricing-card .price { font-size: 2.5rem; font-weight: 800; color: var(--primary); }
+        .pricing-card .price span { font-size: 1rem; font-weight: 500; color: var(--muted); }
+        .pricing-card p.pricing-desc { font-size: .88rem; color: var(--muted); margin: 8px 0 20px; }
+        .pricing-features { list-style: none; text-align: left; margin-bottom: 28px; }
+        .pricing-features li { padding: 8px 0; font-size: .9rem; display: flex; align-items: center; gap: 10px; }
+        .pricing-features li::before { content: '✓'; color: var(--primary); font-weight: 700; }
+
+        /* ── COST BREAKDOWN ── */
+        .cost-section { background: #F0FDF4; }
+        .cost-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+        .cost-table { width: 100%; border-collapse: collapse; }
+        .cost-table th, .cost-table td { padding: 14px 16px; text-align: left; }
+        .cost-table thead th { background: var(--primary); color: #fff; font-size: .85rem; text-transform: uppercase; letter-spacing: 1px; }
+        .cost-table thead th:first-child { border-radius: 8px 0 0 0; }
+        .cost-table thead th:last-child { border-radius: 0 8px 0 0; }
+        .cost-table tbody td { border-bottom: 1px solid #E5E7EB; font-size: .92rem; }
+        .cost-table tbody tr:last-child td { font-weight: 700; color: var(--primary); border-bottom: none; background: #EEF2FF; }
+        .cost-summary h3 { font-size: 1.8rem; font-weight: 800; margin-bottom: 16px; }
+        .cost-summary p { color: var(--muted); margin-bottom: 12px; }
+        .cost-summary .highlight-box {
+            background: #fff; border: 2px solid #10B981; border-radius: var(--radius);
+            padding: 20px; margin-top: 20px;
+        }
+        .cost-summary .highlight-box h4 { color: #059669; font-size: 1.4rem; }
+        .cost-summary .highlight-box p { color: var(--muted); font-size: .9rem; margin: 0; }
+
+        /* ── TESTIMONIALS ── */
+        .testimonials-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+        .testimonial-card {
+            background: var(--card); border-radius: var(--radius); padding: 28px;
+            border: 1px solid #E5E7EB;
+        }
+        .testimonial-card .stars { margin-bottom: 14px; display: block; }
+        .testimonial-card p { font-size: .92rem; font-style: italic; color: var(--muted); margin-bottom: 16px; }
+        .testimonial-author { display: flex; align-items: center; gap: 12px; }
+        .testimonial-avatar {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #7C3AED); color: #fff;
+            display: flex; align-items: center; justify-content: center; font-weight: 700;
+        }
+        .testimonial-author h5 { font-size: .9rem; font-weight: 600; }
+        .testimonial-author span { font-size: .8rem; color: var(--muted); }
+
+        /* ── CTA ── */
+        .cta-section {
+            background: linear-gradient(135deg, var(--primary), #7C3AED);
+            color: #fff; text-align: center; padding: 80px 0;
+        }
+        .cta-section h2 { font-size: 2.4rem; font-weight: 800; margin-bottom: 16px; }
+        .cta-section p { font-size: 1.1rem; opacity: .85; max-width: 500px; margin: 0 auto 32px; }
+        .cta-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn-white { background: #fff; color: var(--primary); }
+        .btn-white:hover { background: #F3F4F6; transform: translateY(-1px); }
+
+        /* ── FOOTER ── */
+        footer {
+            background: #111827; color: #9CA3AF; padding: 60px 0 30px;
+        }
+        .footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 40px; }
+        .footer-brand .logo { color: #fff; margin-bottom: 12px; }
+        .footer-brand p { font-size: .88rem; line-height: 1.7; }
+        footer h4 { color: #fff; font-size: .9rem; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; }
+        footer ul { list-style: none; }
+        footer ul li { margin-bottom: 10px; }
+        footer ul li a { color: #9CA3AF; font-size: .88rem; transition: color .2s; }
+        footer ul li a:hover { color: #fff; }
+        .footer-bottom { border-top: 1px solid #1F2937; padding-top: 24px; text-align: center; font-size: .82rem; }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2rem; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .steps-grid, .pricing-grid, .testimonials-grid { grid-template-columns: 1fr; }
+            .cost-grid { grid-template-columns: 1fr; }
+            .footer-grid { grid-template-columns: 1fr 1fr; }
+            .nav-links { display: none; }
+            .pricing-card.popular { transform: scale(1); }
+            .listings-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ── ANIMATIONS ── */
+        .fade-up { opacity: 0; transform: translateY(30px); transition: all .6s ease; }
+        .fade-up.visible { opacity: 1; transform: translateY(0); }
+    </style>
+</head>
+<body>
+
+<!-- ══════════ NAVIGATION ══════════ -->
+<nav id="navbar">
+    <div class="container">
+        <div class="logo">📍 Local<span>Pulse</span></div>
+        <div class="nav-links">
+            <a href="#categories">Categories</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#revenue">Revenue</a>
+            <a href="#" class="btn btn-outline">List Your Business</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ══════════ HERO ══════════ -->
+<section class="hero">
+    <div class="container">
+        <p class="section-label">Your City's #1 Business Directory</p>
+        <h1>Discover the <span class="highlight">Best Local Businesses</span> Near You</h1>
+        <p>From restaurants to plumbers, find trusted local businesses with reviews, photos, and direct contact — all in one place.</p>
+        <div class="search-box">
+            <input type="text" placeholder="🔍  What are you looking for?">
+            <input type="text" placeholder="📍  City or Zip" style="max-width: 160px; border-left: 1px solid #E5E7EB;">
+            <button>Search</button>
+        </div>
+        <div class="hero-tags">
+            <span>🍕 Restaurants</span>
+            <span>🔧 Plumbers</span>
+            <span>💇 Hair Salons</span>
+            <span>🏋️ Gyms</span>
+            <span>🐾 Pet Services</span>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ STATS ══════════ -->
+<div class="stats-bar">
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-item fade-up"><h3>12,500+</h3><p>Listed Businesses</p></div>
+            <div class="stat-item fade-up"><h3>85,000+</h3><p>Monthly Visitors</p></div>
+            <div class="stat-item fade-up"><h3>34,000+</h3><p>Verified Reviews</p></div>
+            <div class="stat-item fade-up"><h3>150+</h3><p>Cities Covered</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════ CATEGORIES ══════════ -->
+<section id="categories">
+    <div class="container text-center">
+        <p class="section-label">Browse by Category</p>
+        <h2 class="section-title">Explore Popular Categories</h2>
+        <p class="section-subtitle">Whatever you need, find the perfect local business in seconds.</p>
+        <div class="categories-grid">
+            <div class="category-card fade-up"><div class="category-icon">🍽️</div><h4>Restaurants</h4><p>2,340 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">🏥</div><h4>Healthcare</h4><p>1,120 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">🔧</div><h4>Home Services</h4><p>980 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">💇</div><h4>Beauty & Spa</h4><p>1,560 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">🏋️</div><h4>Fitness</h4><p>640 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">🛒</div><h4>Shopping</h4><p>3,200 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">📚</div><h4>Education</h4><p>430 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">🐾</div><h4>Pet Services</h4><p>380 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">⚖️</div><h4>Legal</h4><p>290 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">🚗</div><h4>Automotive</h4><p>510 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">🎉</div><h4>Events</h4><p>720 listings</p></div>
+            <div class="category-card fade-up"><div class="category-icon">💻</div><h4>Tech Services</h4><p>460 listings</p></div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ FEATURED LISTINGS ══════════ -->
+<section style="background: #F3F4F6;">
+    <div class="container">
+        <p class="section-label">Featured Businesses</p>
+        <h2 class="section-title">Top-Rated This Month</h2>
+        <p class="section-subtitle">Premium listings get prominent placement and more customers.</p>
+        <div class="listings-grid">
+            <div class="listing-card fade-up">
+                <div class="listing-img" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <span class="listing-badge">⭐ Featured</span>
+                    <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:2.5rem;">🍕</div>
+                </div>
+                <div class="listing-body">
+                    <h3>Bella Napoli Pizzeria</h3>
+                    <div class="listing-meta">
+                        <span class="stars">★★★★★</span>
+                        <span>4.9 (234 reviews)</span>
+                    </div>
+                    <p>Authentic wood-fired Neapolitan pizza in the heart of downtown. Family-owned since 1998.</p>
+                    <div class="listing-tags"><span>Italian</span><span>Pizza</span><span>Dine-in</span></div>
+                </div>
+            </div>
+            <div class="listing-card fade-up">
+                <div class="listing-img" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <span class="listing-badge">⭐ Featured</span>
+                    <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:2.5rem;">💇</div>
+                </div>
+                <div class="listing-body">
+                    <h3>Luxe Hair Studio</h3>
+                    <div class="listing-meta">
+                        <span class="stars">★★★★★</span>
+                        <span>4.8 (189 reviews)</span>
+                    </div>
+                    <p>Award-winning stylists offering cuts, color, and treatments in a modern relaxing space.</p>
+                    <div class="listing-tags"><span>Hair Salon</span><span>Color</span><span>Bridal</span></div>
+                </div>
+            </div>
+            <div class="listing-card fade-up">
+                <div class="listing-img" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <span class="listing-badge">⭐ Featured</span>
+                    <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:2.5rem;">🔧</div>
+                </div>
+                <div class="listing-body">
+                    <h3>QuickFix Plumbing Co.</h3>
+                    <div class="listing-meta">
+                        <span class="stars">★★★★★</span>
+                        <span>4.7 (312 reviews)</span>
+                    </div>
+                    <p>24/7 emergency plumbing, drain cleaning, and water heater installation. Licensed & insured.</p>
+                    <div class="listing-tags"><span>Plumbing</span><span>Emergency</span><span>Licensed</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ HOW IT WORKS ══════════ -->
+<section id="how-it-works">
+    <div class="container text-center">
+        <p class="section-label">How It Works</p>
+        <h2 class="section-title">Simple for Businesses, Easy for Users</h2>
+        <p class="section-subtitle">Getting listed takes just minutes. Getting found takes even less.</p>
+        <div class="steps-grid">
+            <div class="step-card fade-up">
+                <div class="step-number">1</div>
+                <h3>Claim Your Listing</h3>
+                <p>Business owners sign up and create a profile with photos, hours, services, and contact info.</p>
+            </div>
+            <div class="step-card fade-up">
+                <div class="step-number">2</div>
+                <h3>Get Discovered</h3>
+                <p>Customers search by category, location, or keyword and find your business instantly.</p>
+            </div>
+            <div class="step-card fade-up">
+                <div class="step-number">3</div>
+                <h3>Grow & Connect</h3>
+                <p>Collect reviews, respond to inquiries, and upgrade to featured for maximum visibility.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ PRICING (For Businesses) ══════════ -->
+<section id="pricing" style="background: #F3F4F6;">
+    <div class="container text-center">
+        <p class="section-label">Business Listing Plans</p>
+        <h2 class="section-title">Choose Your Visibility Level</h2>
+        <p class="section-subtitle">Start free. Upgrade when you're ready to grow faster.</p>
+        <div class="pricing-grid">
+            <div class="pricing-card fade-up">
+                <h3>Basic</h3>
+                <div class="price">Free</div>
+                <p class="pricing-desc">Perfect for getting started</p>
+                <ul class="pricing-features">
+                    <li>Business name & address</li>
+                    <li>Phone number & hours</li>
+                    <li>1 photo upload</li>
+                    <li>Customer reviews</li>
+                    <li>Basic search placement</li>
+                </ul>
+                <a href="#" class="btn btn-outline" style="width: 100%; justify-content: center;">Get Listed Free</a>
+            </div>
+            <div class="pricing-card popular fade-up">
+                <span class="popular-tag">Most Popular</span>
+                <h3>Premium</h3>
+                <div class="price">\$29<span>/mo</span></div>
+                <p class="pricing-desc">For growing businesses</p>
+                <ul class="pricing-features">
+                    <li>Everything in Basic</li>
+                    <li>⭐ Featured badge</li>
+                    <li>Up to 20 photos</li>
+                    <li>Priority search ranking</li>
+                    <li>Business website link</li>
+                    <li>Monthly analytics report</li>
+                    <li>Respond to reviews</li>
+                </ul>
+                <a href="#" class="btn btn-primary" style="width: 100%; justify-content: center;">Start Premium</a>
+            </div>
+            <div class="pricing-card fade-up">
+                <h3>Elite</h3>
+                <div class="price">\$79<span>/mo</span></div>
+                <p class="pricing-desc">Maximum exposure</p>
+                <ul class="pricing-features">
+                    <li>Everything in Premium</li>
+                    <li>🏆 Top of search results</li>
+                    <li>Homepage spotlight</li>
+                    <li>Unlimited photos & video</li>
+                    <li>Lead generation form</li>
+                    <li>Dedicated account manager</li>
+                    <li>Social media promotion</li>
+                </ul>
+                <a href="#" class="btn btn-outline" style="width: 100%; justify-content: center;">Go Elite</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ 💰 REVENUE MODEL (PARTNER SECTION) ══════════ -->
+<section id="revenue" class="revenue-section">
+    <div class="container text-center">
+        <p class="section-label">💼 Business Opportunity</p>
+        <h2 class="section-title" style="color:#fff;">Multiple Revenue Streams, Minimal Overhead</h2>
+        <p class="section-subtitle">Here's how LocalPulse generates sustainable, scalable income.</p>
+        <div class="revenue-grid">
+            <div class="revenue-card fade-up">
+                <div class="revenue-icon">💎</div>
+                <h4>Premium Listings</h4>
+                <p>Businesses pay \$29–\$79/mo for enhanced profiles, featured badges, and priority placement.</p>
+                <div class="revenue-amount">\$29–\$79/mo each</div>
+            </div>
+            <div class="revenue-card fade-up">
+                <div class="revenue-icon">📢</div>
+                <h4>Banner Advertising</h4>
+                <p>Sell ad space on category pages and search results to local businesses and brands.</p>
+                <div class="revenue-amount">\$200–\$800/mo</div>
+            </div>
+            <div class="revenue-card fade-up">
+                <div class="revenue-icon">🤝</div>
+                <h4>Lead Generation</h4>
+                <p>Charge businesses per qualified lead or inquiry generated through their listing page.</p>
+                <div class="revenue-amount">\$5–\$25/lead</div>
+            </div>
+            <div class="revenue-card fade-up">
+                <div class="revenue-icon">🎯</div>
+                <h4>Sponsored Placements</h4>
+                <p>Offer "Sponsored" top spots in search results — the Google Ads model for your niche.</p>
+                <div class="revenue-amount">\$50–\$200/mo</div>
+            </div>
+            <div class="revenue-card fade-up">
+                <div class="revenue-icon">📧</div>
+                <h4>Email Newsletters</h4>
+                <p>Weekly "Best Of" emails to subscribers with sponsored business highlights.</p>
+                <div class="revenue-amount">\$100–\$500/send</div>
+            </div>
+            <div class="revenue-card fade-up">
+                <div class="revenue-icon">🏷️</div>
+                <h4>Deals & Coupons</h4>
+                <p>Businesses pay to feature exclusive deals. Users love it, businesses get foot traffic.</p>
+                <div class="revenue-amount">\$25–\$100/deal</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ 💸 STARTUP COST BREAKDOWN ══════════ -->
+<section class="cost-section">
+    <div class="container">
+        <div class="cost-grid">
+            <div class="fade-up">
+                <p class="section-label">💸 Startup Costs</p>
+                <h2 class="section-title">Launch for Under \$200</h2>
+                <table class="cost-table">
+                    <thead>
+                        <tr><th>Expense</th><th>Monthly Cost</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Domain Name (.com)</td><td>\$1/mo (\$12/yr)</td></tr>
+                        <tr><td>Hosting (Shared/VPS)</td><td>\$5–\$25/mo</td></tr>
+                        <tr><td>Directory Theme/Plugin</td><td>\$0–\$70 (one-time)</td></tr>
+                        <tr><td>SSL Certificate</td><td>Free (Let's Encrypt)</td></tr>
+                        <tr><td>Email Marketing Tool</td><td>Free tier</td></tr>
+                        <tr><td>Logo & Branding</td><td>\$0–\$50 (Canva/AI)</td></tr>
+                        <tr><td><strong>Total to Launch</strong></td><td><strong>Under \$150</strong></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="cost-summary fade-up">
+                <h3>The Math is Simple 📊</h3>
+                <p>With just <strong>10 Premium subscribers</strong> at \$29/mo, you're generating <strong>\$290/mo recurring revenue</strong> — and that's before ads, leads, and sponsorships.</p>
+                <p>Directory sites are <strong>highly scalable</strong> — content grows through user submissions, SEO compounds over time, and margins increase as you grow.</p>
+                <div class="highlight-box">
+                    <h4>🟢 Break-even: Month 1</h4>
+                    <p>Realistic path to \$2K–\$5K/mo within 6–12 months with consistent effort.</p>
+                </div>
+                <div class="highlight-box" style="border-color: var(--primary); margin-top: 12px;">
+                    <h4 style="color: var(--primary);">🚀 Year 1 Target: \$36K–\$60K</h4>
+                    <p>Recurring revenue + low churn = compounding growth.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ TESTIMONIALS ══════════ -->
+<section>
+    <div class="container text-center">
+        <p class="section-label">Testimonials</p>
+        <h2 class="section-title">Loved by Businesses & Users</h2>
+        <p class="section-subtitle">Here's what our early adopters are saying.</p>
+        <div class="testimonials-grid">
+            <div class="testimonial-card fade-up">
+                <span class="stars">★★★★★</span>
+                <p>"We got 47 new customers in our first month as a Premium listing. Best marketing money we've ever spent."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">MR</div>
+                    <div><h5>Maria Rodriguez</h5><span>Owner, Casa de Tacos</span></div>
+                </div>
+            </div>
+            <div class="testimonial-card fade-up">
+                <span class="stars">★★★★★</span>
+                <p>"I use LocalPulse every week to find new services. It's like Yelp but actually focused on our community."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">JT</div>
+                    <div><h5>James Thompson</h5><span>Resident & User</span></div>
+                </div>
+            </div>
+            <div class="testimonial-card fade-up">
+                <span class="stars">★★★★★</span>
+                <p>"The featured placement paid for itself 10x over. Our phone hasn't stopped ringing since we upgraded."</p>
+                <div class="testimonial-author">
+                    <div class="testimonial-avatar">SK</div>
+                    <div><h5>Sarah Kim</h5><span>QuickFix Plumbing</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ CTA ══════════ -->
+<section class="cta-section">
+    <div class="container">
+        <h2>Ready to Build This Together?</h2>
+        <p>Low startup costs. High margins. Recurring revenue. Let's launch our local directory and own the market.</p>
+        <div class="cta-buttons">
+            <a href="#" class="btn btn-white btn-lg">📅 Schedule Partner Meeting</a>
+            <a href="#revenue" class="btn btn-accent btn-lg">💰 See Revenue Model</a>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════ FOOTER ══════════ -->
+<footer>
+    <div class="container">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <div class="logo">📍 Local<span>Pulse</span></div>
+                <p>Connecting communities with the businesses they love. Your trusted local business directory.</p>
+            </div>
+            <div>
+                <h4>Directory</h4>
+                <ul>
+                    <li><a href="#">All Categories</a></li>
+                    <li><a href="#">New Listings</a></li>
+                    <li><a href="#">Top Rated</a></li>
+                    <li><a href="#">Deals & Offers</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>For Business</h4>
+                <ul>
+                    <li><a href="#">Add Listing</a></li>
+                    <li><a href="#">Pricing Plans</a></li>
+                    <li><a href="#">Advertising</a></li>
+                    <li><a href="#">Success Stories</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4>Company</h4>
+                <ul>
+                    <li><a href="#">About Us</a></li>
+                    <li><a href="#">Contact</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 LocalPulse. All rights reserved. | Built with ❤️ for local communities.</p>
+        </div>
+    </div>
+</footer>
+
+<!-- ══════════ JAVASCRIPT ══════════ -->
+<script>
+    // Navbar scroll effect
+    window.addEventListener('scroll', () => {
+        document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
+    });
+
+    // Scroll-triggered fade-in animations
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry, i) => {
+            if (entry.isIntersecting) {
+                setTimeout(() => entry.target.classList.add('visible'), i * 80);
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.15 });
+
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
