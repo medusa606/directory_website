@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian — System Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0d0f12;
+    --surface: #141720;
+    --surface2: #1c2030;
+    --border: #2a2f42;
+    --border-bright: #3a4158;
+
+    --scrape: #4a9eff;
+    --scrape-dim: rgba(74,158,255,0.12);
+    --scrape-border: rgba(74,158,255,0.35);
+
+    --contrib: #a78bfa;
+    --contrib-dim: rgba(167,139,250,0.12);
+    --contrib-border: rgba(167,139,250,0.35);
+
+    --process: #34d399;
+    --process-dim: rgba(52,211,153,0.12);
+    --process-border: rgba(52,211,153,0.35);
+
+    --curate: #fb923c;
+    --curate-dim: rgba(251,146,60,0.12);
+    --curate-border: rgba(251,146,60,0.35);
+
+    --publish: #f43f5e;
+    --publish-dim: rgba(244,63,94,0.12);
+    --publish-border: rgba(244,63,94,0.35);
+
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-faint: #475569;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: var(--sans);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 24px 60px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .header__eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 10px;
+  }
+  .header__title {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .header__title span { color: var(--process); }
+
+  /* ── LEGEND ── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 48px;
+  }
+  .legend__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .legend__dot {
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  /* ── DIAGRAM WRAPPER ── */
+  .diagram {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── LANE ROWS ── */
+  .lane {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 0;
+    position: relative;
+  }
+  .lane + .lane { margin-top: 0; }
+
+  .lane__label {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 20px;
+    padding-top: 0;
+  }
+  .lane__label span {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    writing-mode: horizontal-tb;
+    text-align: right;
+  }
+
+  .lane__content {
+    border-left: 1px solid var(--border);
+    padding: 16px 0 16px 28px;
+    position: relative;
+  }
+
+  /* Lane accent line */
+  .lane__content::before {
+    content: '';
+    position: absolute;
+    left: -1px; top: 0; bottom: 0;
+    width: 2px;
+    opacity: 0;
+  }
+  .lane--scrape .lane__content::before   { background: var(--scrape);  opacity: 0.5; }
+  .lane--contrib .lane__content::before  { background: var(--contrib); opacity: 0.5; }
+  .lane--process .lane__content::before  { background: var(--process); opacity: 0.5; }
+  .lane--curate  .lane__content::before  { background: var(--curate);  opacity: 0.5; }
+  .lane--publish .lane__content::before  { background: var(--publish); opacity: 0.5; }
+
+  /* ── NODE ROWS ── */
+  .node-row {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  /* connector between rows */
+  .connector {
+    display: flex;
+    align-items: center;
+    padding: 6px 0 6px 28px;
+    gap: 8px;
+    margin-left: 110px;
+  }
+  .connector__line {
+    width: 2px;
+    height: 28px;
+    margin-left: 14px;
+  }
+  .connector__arrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    padding-left: 4px;
+    line-height: 1;
+  }
+  .connector__label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.06em;
+  }
+
+  /* ── NODES ── */
+  .node {
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 14px 16px;
+    min-width: 160px;
+    max-width: 220px;
+    flex: 1;
+    position: relative;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .node:hover {
+    border-color: var(--border-bright);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    z-index: 2;
+  }
+
+  /* colour variants */
+  .node--scrape  { border-color: var(--scrape-border);  background: linear-gradient(135deg, var(--scrape-dim), var(--surface)); }
+  .node--contrib { border-color: var(--contrib-border); background: linear-gradient(135deg, var(--contrib-dim), var(--surface)); }
+  .node--process { border-color: var(--process-border); background: linear-gradient(135deg, var(--process-dim), var(--surface)); }
+  .node--curate  { border-color: var(--curate-border);  background: linear-gradient(135deg, var(--curate-dim), var(--surface)); }
+  .node--publish { border-color: var(--publish-border); background: linear-gradient(135deg, var(--publish-dim), var(--surface)); }
+
+  .node__type {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .node--scrape  .node__type { color: var(--scrape); }
+  .node--contrib .node__type { color: var(--contrib); }
+  .node--process .node__type { color: var(--process); }
+  .node--curate  .node__type { color: var(--curate); }
+  .node--publish .node__type { color: var(--publish); }
+
+  .node__title {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 5px;
+    line-height: 1.3;
+  }
+
+  .node__desc {
+    font-family: var(--sans);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+
+  .node__script {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--border-bright);
+    border-radius: 3px;
+    padding: 2px 7px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .node__script + .node__script { margin-left: 4px; }
+
+  /* ── WIDE NODE (full-width) ── */
+  .node--wide {
+    min-width: unset;
+    max-width: unset;
+    flex: 1 1 100%;
+  }
+  .node--wide .node__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-top: 10px;
+  }
+  .node__col-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 5px;
+  }
+  .node__col-body {
+    font-family: var(--sans);
+    font-size: 11.5px;
+    color: var(--text-faint);
+    line-height: 1.55;
+  }
+
+  /* ── FLOW ARROWS between rows ── */
+  .flow-connector {
+    display: flex;
+    align-items: flex-start;
+    padding: 0 0 0 calc(110px + 28px);
+    gap: 0;
+    position: relative;
+  }
+
+  .flow-connector__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .flow-line-v {
+    width: 2px;
+    height: 24px;
+    margin-left: 18px;
+  }
+  .flow-label {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    padding-left: 28px;
+    padding-bottom: 4px;
+    padding-top: 2px;
+    position: relative;
+  }
+  .flow-label::before {
+    content: '▼';
+    position: absolute;
+    left: 12px;
+    top: 2px;
+    font-size: 8px;
+  }
+
+  /* scrape connector colour */
+  .flow-line-v--scrape  { background: linear-gradient(to bottom, var(--scrape),  var(--process)); }
+  .flow-line-v--contrib { background: linear-gradient(to bottom, var(--contrib), var(--process)); }
+  .flow-line-v--process { background: linear-gradient(to bottom, var(--process), var(--curate));  }
+  .flow-line-v--curate  { background: linear-gradient(to bottom, var(--curate),  var(--publish)); }
+
+  /* ── MERGE INDICATOR ── */
+  .merge-bar {
+    margin: 0 0 0 calc(110px + 28px);
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(to right, var(--scrape), var(--contrib), var(--process));
+    opacity: 0.5;
+    max-width: 500px;
+  }
+
+  /* ── SECTION DIVIDER ── */
+  .section-gap { height: 8px; }
+
+  /* ── FOOTNOTES ── */
+  .footnotes {
+    max-width: 1100px;
+    margin: 40px auto 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .footnote {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .footnote__heading {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+  }
+  .footnote__body {
+    font-family: var(--sans);
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .footnote__body code {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--process);
+  }
+
+  @media (max-width: 700px) {
+    .lane { grid-template-columns: 80px 1fr; }
+    .node { min-width: 130px; font-size: 12px; }
+    .node--wide .node__row { grid-template-columns: 1fr; }
+    .footnotes { grid-template-columns: 1fr; }
+    .flow-connector { padding-left: calc(80px + 20px); }
+    .merge-bar { margin-left: calc(80px + 20px); }
+    .connector { margin-left: 80px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header__eyebrow">System Architecture · Data Pipeline</div>
+  <div class="header__title">Meridian<span>.</span> — Content Workflow</div>
+</div>
+
+<div class="legend">
+  <div class="legend__item"><div class="legend__dot" style="background:var(--scrape)"></div>Data Sources (Scrape)</div>
+  <div class="legend__item"><div class="legend__dot" style="background:var(--contrib)"></div>External Contributors</div>
+  <div class="legend__item"><div class="legend__dot" style="background:var(--process)"></div>Processing / Enrichment</div>
+  <div class="legend__item"><div class="legend__dot" style="background:var(--curate)"></div>Curation / Review</div>
+  <div class="legend__item"><div class="legend__dot" style="background:var(--publish)"></div>Publish / Delivery</div>
+</div>
+
+<div class="diagram">
+
+  <!-- ════════════════════════════════
+       LANE 1 — DATA SOURCES
+  ════════════════════════════════ -->
+  <div class="lane lane--scrape">
+    <div class="lane__label"><span>Data Sources</span></div>
+    <div class="lane__content">
+      <div class="node-row">
+
+        <div class="node node--scrape">
+          <div class="node__type">API · Free Tier</div>
+          <div class="node__title">Google Places API</div>
+          <div class="node__desc">Name, address, category, phone, hours, photos, website. Best coverage for established businesses.</div>
+          <span class="node__script">scrape_google.py</span>
+        </div>
+
+        <div class="node node--scrape">
+          <div class="node__type">API · Free / Open</div>
+          <div class="node__title">OpenStreetMap (Overpass)</div>
+          <div class="node__desc">Free, no key needed. Good for independents not on Google. amenity + shop tags.</div>
+          <span class="node__script">scrape_osm.py</span>
+        </div>
+
+        <div class="node node--scrape">
+          <div class="node__type">API · Free Tier</div>
+          <div class="node__title">Yelp Fusion</div>
+          <div class="node__desc">500 calls/day free. Useful as enrichment layer — categories, ratings, extra photos.</div>
+          <span class="node__script">scrape_yelp.py</span>
+        </div>
+
+        <div class="node node--scrape">
+          <div class="node__type">API · Free (UK)</div>
+          <div class="node__title">Companies House</div>
+          <div class="node__desc">Registered business names & addresses. Cross-reference to verify legitimacy of sole traders.</div>
+          <span class="node__script">scrape_ch.py</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════
+       LANE 2 — CONTRIBUTORS
+  ════════════════════════════════ -->
+  <div class="section-gap"></div>
+  <div class="lane lane--contrib">
+    <div class="lane__label"><span>Contributors</span></div>
+    <div class="lane__content">
+      <div class="node-row">
+
+        <div class="node node--contrib">
+          <div class="node__type">Form · Tally (free)</div>
+          <div class="node__title">"Get Listed" Form</div>
+          <div class="node__desc">Business submits their own listing. Tally form → webhook → Airtable "Pending" table.</div>
+          <span class="node__script">tally_webhook.js</span>
+        </div>
+
+        <div class="node node--contrib">
+          <div class="node__type">Auth · Supabase</div>
+          <div class="node__title">Local Guide Portal</div>
+          <div class="node__desc">Trusted guides log in, submit new listings or annotate scraped candidates. Role-gated — cannot publish.</div>
+          <span class="node__script">guide_portal.html</span>
+        </div>
+
+        <div class="node node--contrib">
+          <div class="node__type">Direct · Editorial</div>
+          <div class="node__title">Editor Writes Story</div>
+          <div class="node__desc">Long-form editorial written directly in Airtable rich-text field. Not scraped — human-authored.</div>
+          <span class="node__script">Airtable (manual)</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- flow connector — both streams merge into processing -->
+  <div class="flow-connector" style="padding-top:10px; padding-bottom:4px;">
+    <div class="flow-connector__inner">
+      <div class="flow-line-v flow-line-v--scrape" style="height:20px; margin-left:18px;"></div>
+      <div class="flow-label" style="color:var(--text-faint);">All inputs normalised → Airtable "Candidates" table</div>
+    </div>
+  </div>
+  <div class="merge-bar"></div>
+  <div style="height:8px;"></div>
+
+  <!-- ════════════════════════════════
+       LANE 3 — PROCESSING
+  ════════════════════════════════ -->
+  <div class="lane lane--process">
+    <div class="lane__label"><span>Processing</span></div>
+    <div class="lane__content">
+      <div class="node-row">
+
+        <div class="node node--process node--wide">
+          <div class="node__type">Script · Runs on demand / scheduled</div>
+          <div class="node__title">Data Normalisation & Enrichment Pipeline</div>
+          <div class="node__desc">Merges all source data into a unified schema. Deduplicates. Adds enrichment fields. Writes to Airtable via API.</div>
+          <div class="node__row">
+            <div>
+              <div class="node__col-title">1 · Normalise</div>
+              <div class="node__col-body">Map each source's fields to a shared schema (name, category, lat/lng, description, photo_url, source_ref). Strip chains & multiples.</div>
+            </div>
+            <div>
+              <div class="node__col-title">2 · Deduplicate</div>
+              <div class="node__col-body">Fuzzy match on name + postcode. Flag likely duplicates for human review rather than auto-deleting. Score confidence 0–1.</div>
+            </div>
+            <div>
+              <div class="node__col-title">3 · Enrich</div>
+              <div class="node__col-body">Auto-populate missing fields by cross-referencing sources. Generate a short AI-draft bio (Claude API) as a starting point for editors.</div>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <span class="node__script">normalise.py</span>
+            <span class="node__script">dedup.py</span>
+            <span class="node__script">enrich.py</span>
+            <span class="node__script">airtable_push.py</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- flow connector -->
+  <div class="flow-connector" style="padding-top:10px; padding-bottom:4px;">
+    <div class="flow-connector__inner">
+      <div class="flow-line-v flow-line-v--process" style="height:20px; margin-left:18px;"></div>
+      <div class="flow-label">Records enter review queue with status = <span style="font-family:var(--mono);font-size:9.5px;color:var(--curate);">PENDING</span></div>
+    </div>
+  </div>
+  <div style="height:4px;"></div>
+
+  <!-- ════════════════════════════════
+       LANE 4 — CURATION
+  ════════════════════════════════ -->
+  <div class="lane lane--curate">
+    <div class="lane__label"><span>Curation</span></div>
+    <div class="lane__content">
+      <div class="node-row">
+
+        <div class="node node--curate">
+          <div class="node__type">Interface · Airtable</div>
+          <div class="node__title">Editor Review Queue</div>
+          <div class="node__desc">Editors review each candidate. Set status: Approved / Rejected / Needs Info. Add editorial notes.</div>
+          <span class="node__script">Airtable view</span>
+        </div>
+
+        <div class="node node--curate">
+          <div class="node__type">Interface · Guide Portal</div>
+          <div class="node__title">Guide Annotation</div>
+          <div class="node__desc">Guides flag scraped records they recognise: "I know this person / this is inaccurate / worth a story". Feeds editor queue.</div>
+          <span class="node__script">guide_portal.html</span>
+        </div>
+
+        <div class="node node--curate">
+          <div class="node__type">Automated · Check</div>
+          <div class="node__title">Pre-publish Validator</div>
+          <div class="node__desc">Checks required fields are populated, photo exists, description ≥ 80 words. Blocks publish if fails.</div>
+          <span class="node__script">validate.py</span>
+        </div>
+
+        <div class="node node--curate">
+          <div class="node__type">Email · Loops.so</div>
+          <div class="node__title">Business Notification</div>
+          <div class="node__desc">When approved, a personalised email is sent to the business from a named editor. Not automated-sounding.</div>
+          <span class="node__script">notify.py</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- flow connector -->
+  <div class="flow-connector" style="padding-top:10px; padding-bottom:4px;">
+    <div class="flow-connector__inner">
+      <div class="flow-line-v flow-line-v--curate" style="height:20px; margin-left:18px;"></div>
+      <div class="flow-label">Approved records → status = <span style="font-family:var(--mono);font-size:9.5px;color:var(--publish);">PUBLISHED</span> → triggers site build</div>
+    </div>
+  </div>
+  <div style="height:4px;"></div>
+
+  <!-- ════════════════════════════════
+       LANE 5 — PUBLISH
+  ════════════════════════════════ -->
+  <div class="lane lane--publish">
+    <div class="lane__label"><span>Publish</span></div>
+    <div class="lane__content">
+      <div class="node-row">
+
+        <div class="node node--publish">
+          <div class="node__type">Database · Supabase (free)</div>
+          <div class="node__title">Live Listings DB</div>
+          <div class="node__desc">Approved records pushed from Airtable to Supabase via script. Single source of truth for the live site.</div>
+          <span class="node__script">airtable_to_supabase.py</span>
+        </div>
+
+        <div class="node node--publish">
+          <div class="node__type">Script · On approval</div>
+          <div class="node__title">Site Build / Push</div>
+          <div class="node__desc">Netlify or Vercel deploys on each push. JS on the frontend fetches listings from Supabase REST API at page load.</div>
+          <span class="node__script">fetch_listings.js</span>
+          <span class="node__script">render_cards.js</span>
+        </div>
+
+        <div class="node node--publish">
+          <div class="node__type">CDN · Netlify / Vercel (free)</div>
+          <div class="node__title">meridian.co (Live Site)</div>
+          <div class="node__desc">Static HTML + JS shell. Listings loaded dynamically from Supabase. Fast, free hosting, global CDN.</div>
+          <span class="node__script">index.html (your template)</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div><!-- /diagram -->
+
+<!-- ── FOOTNOTES ── -->
+<div class="footnotes">
+
+  <div class="footnote">
+    <div class="footnote__heading">Trigger Logic</div>
+    <div class="footnote__body">
+      Scrape scripts (<code>scrape_*.py</code>) run manually or on a weekly cron (e.g. GitHub Actions — free). Normalise + deduplicate run immediately after each scrape. Airtable→Supabase sync (<code>airtable_to_supabase.py</code>) runs on a webhook trigger when an editor changes a record status to PUBLISHED.
+    </div>
+  </div>
+
+  <div class="footnote">
+    <div class="footnote__heading">Curation Is The Product</div>
+    <div class="footnote__body">
+      Nothing in the scrape → process lanes reaches the live site without an editor decision. Guides can flag and annotate but not approve. Only named editors can set status to PUBLISHED. This is enforced at the Airtable permission level and validated by <code>validate.py</code> before the Supabase push.
+    </div>
+  </div>
+
+  <div class="footnote">
+    <div class="footnote__heading">Scaling Path</div>
+    <div class="footnote__body">
+      At low volume: run scripts locally, use Airtable free tier (≤1k records), Supabase free tier. When you outgrow Airtable, the CMS can be replaced with a custom Supabase admin panel. The frontend (<code>index.html</code>) never needs to change — only the data source.
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
