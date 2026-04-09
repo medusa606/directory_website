@@ -515,6 +515,7 @@ def normalise(place: dict, details: dict,
         "Google Place ID": details.get("place_id") or place.get("place_id", ""),
         "Source": "Google Places",
         "Scrape Date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "last_synced_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         # Curation fields
         "Status": "Pending",
         "Chain Flag": chain_flag,  # ← new field
