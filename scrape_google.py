@@ -541,22 +541,6 @@ def push_to_airtable(records: list[dict], api_key: str,
     api = AirtableApi(api_key)
     table = api.table(base_id, table_name)
 
-    # Fetch existing Place IDs to detect duplicates
-    existing = table.all(fields=["Google Place ID"])
-    existing_ids = {
-        r["fields"].get("Google Place ID")
-        for r in existing
-        if r["fields"].get("Google Place ID")
-    }
-
-    new_records = [r for r in records if r.get("Google Place ID") not in existing_ids]
-    skipped = len(records) - len(new_records)
-
-    logging.info(f"  {len(new_records)} new records to push, {skipped} already exist — skipping.")
-
-    if not new_records:
-        return
-
     # ── Clean records for Airtable ──
     # Number fields reject empty strings — remove them entirely
     # so Airtable treats them as blank
@@ -565,8 +549,8 @@ def push_to_airtable(records: list[dict], api_key: str,
         "Google Review Count", "Distance (m)",
     }
 
-    clean_records = []
-    for record in new_records:
+    records_for_airtable_api = []
+    for record in records: # Process all records for upsert
         clean = {}
         for key, value in record.items():
             # Skip empty values for numeric fields
@@ -574,24 +558,36 @@ def push_to_airtable(records: list[dict], api_key: str,
                 if value is None or value == "" or value == "None":
                     continue  # omit the field entirely
                 try:
-                    clean[key] = float(value)
+                    # Airtable's number fields can be integers or floats.
+                    # Try converting to int first if it looks like one, otherwise float.
+                    if isinstance(value, str) and value.isdigit():
+                        clean[key] = int(value)
+                    else:
+                        clean[key] = float(value)
                 except (ValueError, TypeError):
                     continue  # can't parse — omit it
             else:
                 if value is None:
                     clean[key] = ""
                 else:
-                    clean[key] = str(value)
-        clean_records.append(clean)
-    new_records = clean_records
+                    clean[key] = str(value) # Ensure all other fields are strings
+        records_for_airtable_api.append({"fields": clean}) # Wrap the cleaned fields in a 'fields' key
 
-    # Batch in groups of 10 (Airtable limit)
-    for i in range(0, len(new_records), 10):
-        batch = new_records[i:i + 10]
-        table.batch_create(batch)
+    if not records_for_airtable_api:
+        logging.info("  No records to upsert.")
+        return
+
+    # Use batch_upsert to create new records or update existing ones
+    # 'Google Place ID' is the unique identifier for matching
+    # typecast=True helps pyairtable convert Python types to Airtable types
+    upserted_count = 0
+    for i in range(0, len(records_for_airtable_api), 10):
+        batch = records_for_airtable_api[i:i + 10]
+        response = table.batch_upsert(batch, key_fields=["Google Place ID"], typecast=True)
+        upserted_count += len(response)
         time.sleep(0.25)  # stay within Airtable rate limits
 
-    logging.info(f"  ✓ Pushed {len(new_records)} records to Airtable.")
+    logging.info(f"  ✓ Upserted {upserted_count} records to Airtable (created new or updated existing).")
 
 
 # ─────────────────────────────────────────────
