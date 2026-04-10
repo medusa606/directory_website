@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LocalPulse — Discover Local Businesses</title>
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         /* ── RESET & BASE ── */
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -337,52 +339,9 @@
         <p class="section-label">Featured Businesses</p>
         <h2 class="section-title">Top-Rated This Month</h2>
         <p class="section-subtitle">Premium listings get prominent placement and more customers.</p>
-        <div class="listings-grid">
-            <div class="listing-card fade-up">
-                <div class="listing-img" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                    <span class="listing-badge">⭐ Featured</span>
-                    <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:2.5rem;">🍕</div>
-                </div>
-                <div class="listing-body">
-                    <h3>Bella Napoli Pizzeria</h3>
-                    <div class="listing-meta">
-                        <span class="stars">★★★★★</span>
-                        <span>4.9 (234 reviews)</span>
-                    </div>
-                    <p>Authentic wood-fired Neapolitan pizza in the heart of downtown. Family-owned since 1998.</p>
-                    <div class="listing-tags"><span>Italian</span><span>Pizza</span><span>Dine-in</span></div>
-                </div>
-            </div>
-            <div class="listing-card fade-up">
-                <div class="listing-img" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-                    <span class="listing-badge">⭐ Featured</span>
-                    <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:2.5rem;">💇</div>
-                </div>
-                <div class="listing-body">
-                    <h3>Luxe Hair Studio</h3>
-                    <div class="listing-meta">
-                        <span class="stars">★★★★★</span>
-                        <span>4.8 (189 reviews)</span>
-                    </div>
-                    <p>Award-winning stylists offering cuts, color, and treatments in a modern relaxing space.</p>
-                    <div class="listing-tags"><span>Hair Salon</span><span>Color</span><span>Bridal</span></div>
-                </div>
-            </div>
-            <div class="listing-card fade-up">
-                <div class="listing-img" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                    <span class="listing-badge">⭐ Featured</span>
-                    <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:2.5rem;">🔧</div>
-                </div>
-                <div class="listing-body">
-                    <h3>QuickFix Plumbing Co.</h3>
-                    <div class="listing-meta">
-                        <span class="stars">★★★★★</span>
-                        <span>4.7 (312 reviews)</span>
-                    </div>
-                    <p>24/7 emergency plumbing, drain cleaning, and water heater installation. Licensed & insured.</p>
-                    <div class="listing-tags"><span>Plumbing</span><span>Emergency</span><span>Licensed</span></div>
-                </div>
-            </div>
+        <div class="listings-grid" id="listings-container">
+            <!-- Data from Supabase will be injected here -->
+            <p style="text-align: center; grid-column: 1/-1; color: var(--muted);">Loading local businesses...</p>
         </div>
     </div>
 </section>
@@ -645,6 +604,14 @@
 
 <!-- ══════════ JAVASCRIPT ══════════ -->
 <script>
+    // --- Supabase Configuration ---
+    const SUPABASE_URL = "https://ecrupbqtlhuisqmybleu.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_bG0FgHl8eFqK_VjVACRqjg_mAtuFbjg"; // ← Replace this!
+
+    // Initialize Supabase Client (CDN exposes `supabase` globally)
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     // Navbar scroll effect
     window.addEventListener('scroll', () => {
         document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 20);
@@ -661,6 +628,78 @@
     }, { threshold: 0.15 });
 
     document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+    // Helper: Map categories to emojis
+    function getEmoji(catKey) {
+        const map = {
+            "food_produce": "🍎", "restaurants_cafes": "🍕", "drinks_brewing": "🍺",
+            "craft_makers": "🎨", "home_interiors": "🏠", "health_wellbeing": "🧘",
+            "hair_beauty": "💇", "building_trades": "🔧", "tech_digital": "💻"
+        };
+        return map[catKey] || "📍";
+    }
+
+    // Helper: Generate Star Rating
+    function renderStars(rating) {
+        if (!rating) return 'No rating';
+        return '★'.repeat(Math.floor(rating)) + '☆'.repeat(5 - Math.floor(rating));
+    }
+
+    // Fetch listings from Supabase and render cards
+    async function fetchAndRenderListings() {
+        const container = document.getElementById('listings-container');
+
+        try {
+            const { data: listings, error } = await db
+                .from('listings')
+                .select('*')
+                .eq('status', 'Published')
+                .order('is_featured', { ascending: false });
+
+            if (error) throw error;
+
+            if (!listings || listings.length === 0) {
+                container.innerHTML = '<p style="text-align:center; grid-column:1/-1; color:var(--muted);">No published listings found.</p>';
+                return;
+            }
+
+            container.innerHTML = ''; // Clear loading message
+
+            listings.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'listing-card fade-up';
+
+                const imgUrl = item.image_url || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80';
+                const emoji = getEmoji(item.category_key);
+
+                card.innerHTML = `
+                    <div class="listing-img" style="background-image: url('${imgUrl}');">
+                        ${item.is_featured ? '<span class="listing-badge">⭐ Featured</span>' : ''}
+                        <div style="position:absolute;bottom:16px;left:16px;color:#fff;font-size:2.5rem;">${emoji}</div>
+                    </div>
+                    <div class="listing-body">
+                        <h3>${item.name}</h3>
+                        <div class="listing-meta">
+                            <span class="stars">${renderStars(item.google_rating)}</span>
+                            <span>${item.google_rating || '—'} (${item.google_review_count || 0} reviews)</span>
+                        </div>
+                        <p>${item.description || 'No description available.'}</p>
+                        <div class="listing-tags">
+                            <span>${item.category || 'Local Business'}</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+                observer.observe(card); // Attach animation observer
+            });
+        } catch (err) {
+            console.error('Error loading Supabase data:', err);
+            container.innerHTML = '<p style="color:red; text-align:center; grid-column:1/-1;">Failed to load listings. Check console for details.</p>';
+        }
+    }
+
+    // Initial Load
+    document.addEventListener('DOMContentLoaded', fetchAndRenderListings);
 </script>
 
 </body>
