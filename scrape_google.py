@@ -4,45 +4,60 @@ scrape_google.py — Meridian Directory
 Scrapes local business data from the Google Places API and writes
 candidate records to Airtable (or a local CSV for review).
 
-USAGE EXAMPLES
---------------
-# By place name, 1km radius:
-  python scrape_google.py --location "Hebden Bridge, West Yorkshire" --radius 1000
+SETUP & USAGE
+=============
 
-# By postcode, 2km radius, specific categories only:
-  python scrape_google.py --postcode "HX7 8AB" --radius 2000 --categories "food_produce,craft_makers"
+1. ENVIRONMENT VARIABLES (add to .env file):
+   - GOOGLE_PLACES_API_KEY: Your Google Places API key
+   - AIRTABLE_API_KEY: Your Airtable token (optional, for direct push)
+   - AIRTABLE_BASE_ID: Your Airtable base ID (optional, for direct push)
+   - AIRTABLE_TABLE_NAME: Table name in Airtable (optional, defaults to "Candidates")
 
-# By lat/lng (useful when running from another script):
-  python scrape_google.py --latlng "53.7440,-2.0110" --radius 1500
+2. RUNNING THE SCRAPER:
 
-# Dry run — print results to terminal, don't push to Airtable:
-  python scrape_google.py --location "Todmorden" --radius 2000 --dry-run
+   Basic usage (saves to CSV only):
+   $ python scrape_google.py --location "BS5 0JS" --radius 500 --categories "food_produce"
 
-# Save to CSV only (no Airtable):
-  python scrape_google.py --location "Sowerby Bridge" --radius 1500 --output csv
+   With result limits:
+   $ python scrape_google.py -l "BS5 0JS" -r 500 -c "food_produce" \
+     --max-results 100 --max-details 100
 
-# Scrape with a 50-result cutoff
-python scrape_google.py --location "Hebden Bridge" --radius 2000 --max-results 50
+   Push directly to Airtable:
+   $ python scrape_google.py -l "BS5 0JS" -r 500 -c "food_produce" --output airtable
 
-# Scrape to CSV only, review it, then push later
-python scrape_google.py --location "Todmorden" --radius 1500 --output csv --max-results 100
+   Save CSV AND push to Airtable:
+   $ python scrape_google.py -l "BS5 0JS" -r 500 -c "food_produce" --output both
 
-# ... review and edit the CSV ...
-python scrape_google.py --push-csv meridian_candidates_20260406_1711.csv
+   Push existing CSV to Airtable (no scraping):
+   $ python scrape_google.py --load-csv meridian_candidates_2026-04-11_161941.csv
 
-# Combine cutoff with specific categories
-python scrape_google.py --postcode "HX7 8AB" --radius 1000 --categories "food_produce,craft_makers" --max-results 30
+3. CSV TO AIRTABLE (Manual Import):
 
+   If you have a CSV and want to import manually:
+   a) Ensure Airtable table has these fields (case-sensitive):
+      - name, category, category_key, category_slug, address
+      - city_slug, area_slug, business_slug
+      - latitude, longitude, phone, website, email
+      - google_maps_url, photo_url, image_url
+      - google_summary, opening_hours
+      - google_rating, google_review_count, google_place_id, tags
+      - chain_flag, social_facebook, social_instagram, social_twitter,
+        social_tiktok, social_linkedin, social_youtube
+      - status, ranking_tier, source, scrape_date
 
-SETUP
------
-  pip install requests python-dotenv pyairtable geopy
+   b) In Airtable: Grid view → + (add) → "Import data" → CSV
+   c) Match columns to fields in Airtable
+   d) Set google_place_id as primary key/unique identifier to avoid duplicates
 
-  Create a .env file in the same directory:
-    GOOGLE_PLACES_API_KEY=your_key_here
-    AIRTABLE_API_KEY=your_key_here
-    AIRTABLE_BASE_ID=your_base_id_here
-    AIRTABLE_TABLE_NAME=Candidates
+4. AVAILABLE CATEGORIES:
+   - food_produce: Food shops, bakeries, markets
+   - restaurants_cafes: Restaurants and cafés
+   - drinks_brewing: Breweries, bars, wineries
+   - craft_makers: Ceramics, jewelry, woodworking, etc.
+   - art_design: Art galleries, artists, designers
+   - home_interiors: Furniture, interior design
+   - plants_garden: Florists, garden centers
+   - health_wellbeing: Spas, massage, wellness
 """
 
 import os
@@ -52,13 +67,13 @@ import time
 import json
 import argparse
 import logging
+import re
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 from geopy.geocoders import Nominatim
 from datetime import datetime, timezone
-
 
 import math
 
@@ -85,1217 +100,687 @@ except ImportError:
     AIRTABLE_AVAILABLE = False
 
 # ─────────────────────────────────────────────
+# KNOWN RETAIL CHAINS (to be tagged as chain_flag)
+# ─────────────────────────────────────────────
+KNOWN_CHAINS = {
+    # Supermarkets
+    "Iceland", "Tesco", "Sainsbury's", "Asda", "Morrisons", "Waitrose", "M&S Food Hall",
+    "Budgens", "Co-op", "Lidl", "Aldi", "Marks & Spencer", "Ocado",
+    # Other retail
+    "Poundland", "Home Bargains", "B&M", "The Range",
+}
+
+# ─────────────────────────────────────────────
 # MERIDIAN BUSINESS CATEGORIES
-# Each entry maps a Meridian display name to the
-# Google Places types used to find those businesses.
 # ─────────────────────────────────────────────
 MERIDIAN_CATEGORIES = {
-
-    # ── Food & Drink ──────────────────────────
+    # Food & Drink
     "food_produce": {
         "label": "Food & Produce",
-        "google_types": [
-            "bakery", "butcher", "grocery_or_supermarket",
-            "food", "meal_takeaway", "cafe",
+        "slug": "food-and-produce",
+        "google_types": ["bakery", "butcher", "supermarket", "grocery_or_supermarket"],
+        "keywords": [
+            "farm shop", "deli", "delicatessen", "fishmonger", "greengrocer", "cheese", "charcuterie", "market stall", 
+            "farmers market", "food market", "sweet mart", "sweet shop", "confectionery", "grocery", "supermarket",
+            "independent grocer", "local market"
         ],
-        "keywords": ["farm shop", "deli", "delicatessen", "fishmonger",
-                     "greengrocer", "cheese", "charcuterie", "market stall"],
     },
     "restaurants_cafes": {
         "label": "Restaurants & Cafés",
-        "google_types": ["restaurant", "cafe", "bar", "meal_delivery"],
-        "keywords": ["supper club", "pop-up restaurant", "street food"],
+        "slug": "restaurants-and-cafes",
+        "google_types": ["restaurant", "cafe"],
+        "keywords": ["supper club", "pop-up restaurant", "street food", "bistro", "brasserie", "gastropub"],
     },
     "drinks_brewing": {
         "label": "Drinks & Brewing",
+        "slug": "drinks-and-brewing",
         "google_types": ["bar", "liquor_store"],
-        "keywords": ["brewery", "microbrewery", "distillery", "gin", "cider",
-                     "winery", "wine merchant", "craft beer", "kombucha"],
+        "keywords": ["brewery", "microbrewery", "distillery", "gin", "cider", "winery", "wine merchant", "craft beer", "kombucha"],
     },
-
-    # ── Craft & Making ────────────────────────
+    # Craft & Making
     "craft_makers": {
         "label": "Craft & Makers",
-        "google_types": ["art_gallery", "store"],
-        "keywords": ["ceramics", "pottery", "woodworker", "blacksmith",
-                     "jeweller", "jewellery", "silversmith", "weaver",
-                     "glassblower", "printmaker", "leather", "bookbinder",
-                     "candle", "soap maker", "textile"],
+        "slug": "craft-and-makers",
+        "google_types": ["art_gallery"],
+        "keywords": ["ceramics studio", "pottery", "woodworker", "blacksmith", "jeweller", "jewellery maker", "silversmith", "weaver", "glassblower", "printmaker", "leather craftsman", "bookbinder"],
     },
     "art_design": {
         "label": "Art & Design",
+        "slug": "art-and-design",
         "google_types": ["art_gallery", "painter"],
-        "keywords": ["artist", "illustrator", "graphic designer", "sculptor",
-                     "photographer", "printmaker", "muralist", "studio"],
+        "keywords": ["artist", "illustrator", "graphic designer", "sculptor", "photographer", "printmaker", "muralist", "studio"],
     },
-    "fashion_clothing": {
-        "label": "Fashion & Clothing",
-        "google_types": ["clothing_store", "shoe_store"],
-        "keywords": ["dressmaker", "tailor", "seamstress", "milliner",
-                     "sustainable fashion", "vintage clothing", "alteration"],
-    },
-
-    # ── Home & Garden ─────────────────────────
+    # Home & Garden
     "home_interiors": {
         "label": "Home & Interiors",
+        "slug": "home-and-interiors",
         "google_types": ["furniture_store", "home_goods_store", "interior_designer"],
-        "keywords": ["interior design", "upholstery", "antiques",
-                     "vintage furniture", "restoration", "cabinet maker"],
+        "keywords": ["interior design", "upholstery", "antiques", "vintage furniture", "restoration", "cabinet maker"],
     },
     "plants_garden": {
         "label": "Plants & Garden",
+        "slug": "plants-and-garden",
         "google_types": ["florist", "garden_center", "landscaping"],
-        "keywords": ["nursery", "horticulture", "landscape gardener",
-                     "garden design", "wildflower", "allotment"],
+        "keywords": ["nursery", "horticulture", "landscape gardener", "garden design", "wildflower", "allotment"],
     },
-    "building_trades": {
-        "label": "Building & Trades",
-        "google_types": ["electrician", "plumber", "roofing_contractor",
-                         "general_contractor", "painter"],
-        "keywords": ["builder", "carpenter", "joiner", "stonemason",
-                     "plasterer", "tiler", "roofer", "glazier",
-                     "heating engineer", "solar installer"],
-    },
-
-    # ── Wellbeing & Care ──────────────────────
+    # Wellbeing & Care
     "health_wellbeing": {
         "label": "Health & Wellbeing",
+        "slug": "health-and-wellbeing",
         "google_types": ["physiotherapist", "gym", "spa", "beauty_salon"],
-        "keywords": ["osteopath", "acupuncture", "massage therapist",
-                     "yoga teacher", "pilates", "nutritionist",
-                     "herbalist", "naturopath", "counsellor", "therapist"],
-    },
-    "hair_beauty": {
-        "label": "Hair & Beauty",
-        "google_types": ["hair_care", "beauty_salon", "spa"],
-        "keywords": ["barber", "hairdresser", "nail technician",
-                     "mobile beautician", "makeup artist"],
-    },
-    "childcare_education": {
-        "label": "Childcare & Education",
-        "google_types": ["school", "secondary_school", "tutoring"],
-        "keywords": ["childminder", "nursery", "tutor", "music teacher",
-                     "art classes", "drama school", "language tutor"],
-    },
-
-    # ── Services ──────────────────────────────
-    "professional_services": {
-        "label": "Professional Services",
-        "google_types": ["lawyer", "accountant", "insurance_agency",
-                         "finance", "real_estate_agency"],
-        "keywords": ["solicitor", "bookkeeper", "financial advisor",
-                     "architect", "surveyor", "planning consultant"],
-    },
-    "tech_digital": {
-        "label": "Tech & Digital",
-        "google_types": ["electronics_store"],
-        "keywords": ["web designer", "developer", "IT support",
-                     "app developer", "digital marketing", "SEO",
-                     "videographer", "podcast studio"],
-    },
-    "repair_restoration": {
-        "label": "Repair & Restoration",
-        "google_types": ["bicycle_store", "car_repair"],
-        "keywords": ["cobbler", "shoe repair", "watch repair", "clockmaker",
-                     "bicycle repair", "appliance repair", "phone repair",
-                     "furniture restoration", "clothing repair"],
-    },
-
-    # ── Community & Culture ───────────────────
-    "music_performance": {
-        "label": "Music & Performance",
-        "google_types": ["night_club", "movie_theater"],
-        "keywords": ["music teacher", "recording studio", "sound engineer",
-                     "venue", "theatre company", "dance teacher",
-                     "choir", "band", "DJ"],
-    },
-    "books_publishing": {
-        "label": "Books & Publishing",
-        "google_types": ["book_store", "library"],
-        "keywords": ["bookshop", "publisher", "writer", "editor",
-                     "zine", "independent press", "illustrator"],
-    },
-    "community_social": {
-        "label": "Community & Social Enterprise",
-        "google_types": ["local_government_office", "church"],
-        "keywords": ["community group", "social enterprise", "cooperative",
-                     "charity", "food bank", "repair café", "community garden",
-                     "mutual aid", "community hub"],
-    },
-
-    # ── Animals & Nature ──────────────────────
-    "animals_pets": {
-        "label": "Animals & Pets",
-        "google_types": ["veterinary_care", "pet_store"],
-        "keywords": ["dog trainer", "dog groomer", "pet sitter",
-                     "farrier", "horse riding", "animal sanctuary"],
-    },
-
-    # ── Accommodation & Experience ────────────
-    "accommodation": {
-        "label": "Accommodation",
-        "google_types": ["lodging", "bed_and_breakfast"],
-        "keywords": ["B&B", "guesthouse", "holiday cottage", "glamping",
-                     "shepherd's hut", "airbnb host", "self-catering"],
-    },
-    "experiences_tours": {
-        "label": "Experiences & Tours",
-        "google_types": ["tourist_attraction", "travel_agency"],
-        "keywords": ["walking guide", "foraging", "cookery class",
-                     "craft workshop", "art class", "tour guide",
-                     "outdoor education", "bushcraft"],
+        "keywords": ["osteopath", "acupuncture", "massage therapist", "yoga teacher", "pilates", "nutritionist", "herbalist", "naturopath"],
     },
 }
 
 # ─────────────────────────────────────────────
-# GOOGLE PLACES API HELPERS
+# HELPERS & SCRAPING LOGIC
 # ─────────────────────────────────────────────
+
+def slugify(text: str) -> str:
+    """Convert text to URL-safe slug format.
+    Removes apostrophes, special characters, and converts spaces to hyphens.
+    """
+    if not text: return ""
+    # Remove apostrophes and other problematic characters
+    text = text.replace("'", "").replace('"', "")  # Remove quotes
+    # Replace spaces, ampersands, and slashes with hyphens
+    text = re.sub(r'[\s&/]+', '-', text.lower())
+    # Remove any other special characters except hyphens
+    text = re.sub(r'[^a-z0-9-]', '', text)
+    # Clean up multiple consecutive hyphens
+    text = re.sub(r'-+', '-', text)
+    return text.strip('-')
+
+# Generic/irrelevant types to EXCLUDE from results
+EXCLUDED_TYPES = {
+    "administrative_area_level_1", "administrative_area_level_2", "administrative_area_level_3",
+    "country", "locality", "postal_code", "postal_town", "intersection", "colloquial_area",
+    "point_of_interest", "establishment", "place_of_worship", "church", "mosque", "synagogue",
+    "gym", "health", "hospital", "medical_clinic", "pharmacy", "dentist",
+    "school", "university", "library", "civic_center",
+    "lawyer", "accounting", "insurance_agency",
+    "car_rental", "gas_station", "parking", "auto_repair", "tire_store",
+    "real_estate_agency", "storage",
+}
+
+def is_chain_business(name: str) -> bool:
+    """Check if business name contains a known chain indicator."""
+    name_upper = name.upper()
+    for chain in KNOWN_CHAINS:
+        if chain.upper() in name_upper:
+            return True
+    return False
+
+# Types/keywords that are EXPLICITLY INCORRECT for this category
+BAD_FOOD_TYPES = {
+    "gym", "health", "hospital", "medical_clinic", "pharmacy", "dentist", "veterinary_care",
+    "car_rental", "gas_station", "parking", "auto_repair", "tire_store", "car_wash",
+    "real_estate_agency", "lawyer", "accounting", "insurance_agency", "bank", "book_store",
+    "bowling_alley", "amusement_park", "movie_theater", "nightclub",
+}
+
+BAD_FOOD_KEYWORDS = {
+    "gym", "boxing", "yoga", "fitness", "wellness center", "clinic", "pharmacy", "dentist",
+    "lawyer", "accountant", "real estate", "debt collection", "garage", "tire", "auto",
+    "church", "mosque", "synagogue", "temple", "ministry", "tabernacle",
+}
+
+def is_relevant_place(details: dict, meridian_category: str) -> bool:
+    """Permissive filtering - only rejects obviously wrong categories.
+    Trust that most API results are at least in the ballpark.
+    Final filtering happens in Airtable curation.
+    """
+    place_types = set(details.get("types", []))
+    place_name = details.get("name", "").lower()
+    
+    # ALWAYS REJECT: Purely administrative/generic areas
+    if place_types.issubset({"administrative_area_level_1", "administrative_area_level_2", 
+                             "administrative_area_level_3", "country", "locality", "postal_code", 
+                             "postal_town", "colloquial_area"}):
+        return False
+    
+    # ALWAYS REJECT: Non-food categories in FOOD search
+    if meridian_category in ["food_produce", "restaurants_cafes", "drinks_brewing"]:
+        # Reject if name clearly indicates it's NOT a food business
+        if any(bad in place_name for bad in BAD_FOOD_KEYWORDS):
+            return False
+        
+        # Reject if types are ONLY bad types (has gym but no food, for example)
+        if place_types.intersection(BAD_FOOD_TYPES):
+            # Only reject if it has NO food-related types
+            food_types = {"bakery", "butcher", "grocery_or_supermarket", "food", "meal_takeaway",
+                         "cafe", "restaurant", "bar", "liquor_store", "supermarket", "market", "store"}
+            if not place_types.intersection(food_types):
+                return False
+    
+    # For craft/art/other categories, be similarly permissive
+    # Let curator decide on edge cases
+    
+    # DEFAULT: Accept and let curator decide
+    return True
+
+def extract_social_and_email(website_url: str) -> dict:
+    """
+    Crawls the homepage of the given website to find social links and emails.
+    """
+    socials = {
+        "Email": "",
+        "Social Facebook": "",
+        "Social Instagram": "",
+        "Social Twitter": "",
+        "Social Tiktok": "",
+        "Social Linkedin": "",
+        "Social Youtube": "",
+    }
+    if not website_url:
+        return socials
+
+    try:
+        logging.info(f"    Scraping website for socials: {website_url}")
+        resp = requests.get(website_url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code != 200:
+            return socials
+        
+        html = resp.text
+        
+        # Regex Patterns
+        patterns = {
+            "Email": r'mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+            "Social Facebook": r'https?://(?:www\.)?facebook\.com/[a-zA-Z0-9._-]+',
+            "Social Instagram": r'https?://(?:www\.)?instagram\.com/[a-zA-Z0-9._-]+',
+            "Social Twitter": r'https?://(?:www\.)?(?:twitter\.com|x\.com)/[a-zA-Z0-9._-]+',
+            "Social Tiktok": r'https?://(?:www\.)?tiktok\.com/@[a-zA-Z0-9._-]+',
+            "Social Linkedin": r'https?://(?:www\.)?linkedin\.com/(?:company|in)/[a-zA-Z0-9._-]+',
+            "Social Youtube": r'https?://(?:www\.)?youtube\.com/(?:c/|channel/|user/)[a-zA-Z0-9._-]+',
+        }
+
+        for key, pattern in patterns.items():
+            match = re.search(pattern, html)
+            if match:
+                socials[key] = match.group(1) if key == "Email" else match.group(0)
+
+    except Exception as e:
+        logging.warning(f"    Failed to scrape website {website_url}: {e}")
+    
+    return socials
 
 PLACES_NEARBY_URL = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
 PLACES_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
 PLACES_TEXT_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 GEOCODE_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 
-# Fields to fetch in Place Details (minimise billable fields)
 DETAIL_FIELDS = ",".join([
     "place_id", "name", "formatted_address", "formatted_phone_number",
-    "international_phone_number", "website", "url",
-    "opening_hours", "photos", "geometry",
-    "rating", "user_ratings_total",
-    "business_status", "types",
-    "editorial_summary",
+    "website", "url", "opening_hours", "photos", "geometry",
+    "rating", "user_ratings_total", "business_status", "types",
+    "editorial_summary", "address_components"
 ])
 
-
 def geocode_location(query: str, api_key: str) -> tuple[float, float] | None:
-    """Convert a place name or postcode to lat/lng using Google Geocoding."""
     resp = requests.get(GEOCODE_URL, params={"address": query, "key": api_key}, timeout=10)
     data = resp.json()
     if data.get("status") == "OK":
         loc = data["results"][0]["geometry"]["location"]
         return loc["lat"], loc["lng"]
-    logging.warning(f"Geocoding failed for '{query}': {data.get('status')}")
     return None
 
-
 def geocode_postcode_nominatim(postcode: str) -> tuple[float, float] | None:
-    """Fallback: geocode a UK postcode via Nominatim (free, no key)."""
     geolocator = Nominatim(user_agent="meridian-scraper")
     try:
         location = geolocator.geocode(postcode, country_codes="GB", timeout=10)
         if location:
             return location.latitude, location.longitude
-    except Exception as e:
-        logging.warning(f"Nominatim geocoding failed: {e}")
+    except:
+        pass
     return None
 
-
-def nearby_search(lat: float, lng: float, radius: int,
-                  place_type: str, api_key: str) -> list[dict]:
-    """
-    Run a Nearby Search for a single Google place type.
-    Handles pagination automatically (up to 3 pages = ~60 results).
-    """
+def nearby_search(lat: float, lng: float, radius: int, place_type: str, api_key: str) -> list[dict]:
     results = []
-    params = {
-        "location": f"{lat},{lng}",
-        "radius": radius,
-        "type": place_type,
-        "key": api_key,
-    }
+    params = {"location": f"{lat},{lng}", "radius": radius, "type": place_type, "key": api_key}
     page = 0
     while page < 3:
         resp = requests.get(PLACES_NEARBY_URL, params=params, timeout=10)
         data = resp.json()
-        status = data.get("status")
-        if status not in ("OK", "ZERO_RESULTS"):
-            logging.warning(f"Places API error ({place_type}): {status}")
-            break
+        if data.get("status") not in ("OK", "ZERO_RESULTS"): break
         results.extend(data.get("results", []))
         next_token = data.get("next_page_token")
-        if not next_token:
-            break
-        # Google requires a short delay before using the next_page_token
+        if not next_token: break
         time.sleep(2)
         params = {"pagetoken": next_token, "key": api_key}
         page += 1
-
     return results
 
-
-def text_search(lat: float, lng: float, radius: int,
-                keyword: str, api_key: str) -> list[dict]:
-    """
-    Text Search for a keyword (e.g. 'artisan baker', 'ceramics studio').
-    Useful for categories not well-covered by Google's type taxonomy.
-    """
+def text_search(lat: float, lng: float, radius: int, keyword: str, api_key: str) -> list[dict]:
     results = []
-    params = {
-        "query": keyword,
-        "location": f"{lat},{lng}",
-        "radius": radius,
-        "key": api_key,
-    }
+    params = {"query": keyword, "location": f"{lat},{lng}", "radius": radius, "key": api_key}
     resp = requests.get(PLACES_TEXT_URL, params=params, timeout=10)
     data = resp.json()
     if data.get("status") == "OK":
         results.extend(data.get("results", []))
     return results
 
-
 def get_place_details(place_id: str, api_key: str) -> dict:
-    """Fetch full details for a place by its place_id."""
-    params = {
-        "place_id": place_id,
-        "fields": DETAIL_FIELDS,
-        "key": api_key,
-    }
+    params = {"place_id": place_id, "fields": DETAIL_FIELDS, "key": api_key}
     resp = requests.get(PLACES_DETAILS_URL, params=params, timeout=10)
     data = resp.json()
-    if data.get("status") == "OK":
-        return data.get("result", {})
-    return {}
+    return data.get("result", {}) if data.get("status") == "OK" else {}
 
-
-def build_photo_url(photo_reference: str, api_key: str, max_width: int = 800) -> str:
-    """Build a URL to fetch a Place photo."""
-    return (
-        f"https://maps.googleapis.com/maps/api/place/photo"
-        f"?maxwidth={max_width}&photo_reference={photo_reference}&key={api_key}"
-    )
-
-
-# ─────────────────────────────────────────────
-# CHAIN / CORPORATE DETECTION
-# Meridian only lists independent, local businesses.
-# Rather than auto-skipping (which risks false positives),
-# we flag suspected chains for human review.
-# ─────────────────────────────────────────────
-
-KNOWN_CHAINS = {
-    # Supermarkets
-    "tesco", "tesco express", "tesco metro",
-    "sainsbury's", "sainsbury's local",
-    "asda", "morrisons", "waitrose",
-    "lidl", "aldi", "marks & spencer", "m&s simply food",
-    "co-op", "costco", "iceland",
-    # Coffee / fast food
-    "starbucks", "costa coffee", "caffe nero",
-    "mcdonald's", "mcdonalds", "burger king", "kfc",
-    "subway", "greggs", "pret a manger",
-    "nando's", "nandos", "pizza hut",
-    "domino's", "dominos", "pizza express",
-    "wagamama", "five guys", "leon",
-    # Banks / finance
-    "barclays", "lloyds bank", "natwest", "hsbc",
-    "santander", "halifax", "nationwide",
-    # Pharmacy / health
-    "boots pharmacy", "boots opticians",
-    "superdrug", "lloyds pharmacy",
-    # DIY / home
-    "b&q", "homebase", "wickes",
-    "screwfix", "toolstation",
-    # Telecoms
-    "vodafone", "ee store", "o2 store",
-    "three store", "bt shop",
-    # Hotels
-    "premier inn", "travelodge", "holiday inn",
-    "ibis", "ibis budget",
-    # Retail chains
-    "primark", "next", "h&m", "zara",
-    "sports direct", "wilko",
-}
-
-
-def detect_chain_flag(name: str) -> str:
-    """
-    Check if a business name looks like a known chain.
-    Returns a flag string for the curator, or empty string if clean.
-
-    Uses EXACT match on the full normalised name, plus a STARTS-WITH
-    check for chains that have location suffixes
-    (e.g. "Tesco Express - Hebden Bridge").
-    """
-    name_clean = name.lower().strip()
-
-    # Remove common suffixes Google adds
-    for suffix in [" - ", " – ", " (", " /"]:
-        if suffix in name_clean:
-            name_clean = name_clean[:name_clean.index(suffix)].strip()
-
-    # Exact match
-    if name_clean in KNOWN_CHAINS:
-        return f"Exact match: '{name_clean}'"
-
-    # Starts-with match (catches "Tesco Express - High Street" etc.)
-    for chain in KNOWN_CHAINS:
-        if name_clean.startswith(chain):
-            return f"Starts with: '{chain}'"
-
-    return ""
-
-def is_chain(name: str) -> bool:
-    """Return True if the business name matches a known chain."""
-    name_lower = name.lower().strip()
-    for chain in EXCLUDED_CHAINS:
-        if chain in name_lower:
-            return True
-    return False
-
-
-def is_permanently_closed(place: dict) -> bool:
-    return place.get("business_status") == "CLOSED_PERMANENTLY"
-
-
-# ─────────────────────────────────────────────
-# NORMALISE TO MERIDIAN SCHEMA
-# ─────────────────────────────────────────────
-
-def normalise(place: dict, details: dict,
-              meridian_category: str, api_key: str) -> dict:
-
-    """
-    Map Google Places data to the Meridian candidate schema.
-    This matches the fields expected by airtable_push.py.
-    """
+def normalise(place: dict, details: dict, meridian_category: str, api_key: str) -> dict:
     name = details.get("name") or place.get("name", "")
     address = details.get("formatted_address") or place.get("vicinity", "")
-    phone = details.get("formatted_phone_number", "")
     website = details.get("website", "")
-    maps_url = details.get("url", "")
-    rating = details.get("rating", "")
-    review_count = details.get("user_ratings_total", "")
-    google_types = ", ".join(details.get("types") or place.get("types", []))
-    editorial = details.get("editorial_summary", {}).get("overview", "")
+    
+    # Skip if not operational
+    if details.get("business_status") != "OPERATIONAL":
+        logging.debug(f"Skipping {name}: business_status = {details.get('business_status')}")
+        return None
+    
+    # Detect if this is a chain business
+    is_chain = is_chain_business(name)
+    chain_flag = "chain" if is_chain else "independent"
+    
+    # Extract slugs from address components
+    components = details.get("address_components", [])
+    city = next((c["long_name"] for c in components if "postal_town" in c["types"]), "")
+    area = next((c["long_name"] for c in components if "neighborhood" in c["types"] or "sublocality" in c["types"]), "")
+    
+    # Fallback: if city not found, try to extract from full address
+    if not city:
+        addr_parts = address.split(",")
+        if len(addr_parts) >= 3:
+            # Typically format is: street, area, city, postcode
+            city = addr_parts[-2].strip()
+        elif len(addr_parts) >= 2:
+            city = addr_parts[-1].strip()
+    
+    # Fallback: if area not found, try to extract from address
+    if not area:
+        addr_parts = address.split(",")
+        if len(addr_parts) >= 2:
+            area = addr_parts[0].strip()
+    
+    # Scrape website for socials/email
+    social_data = extract_social_and_email(website)
 
-    geo = (details.get("geometry") or place.get("geometry", {})).get("location", {})
-    lat = geo.get("lat", "")
-    lng = geo.get("lng", "")
-
-    # Build photo URL from first available photo
+    # Photos
     photos = details.get("photos") or place.get("photos", [])
-    photo_url = ""
-    if photos:
-        ref = photos[0].get("photo_reference", "")
-        if ref:
-            photo_url = build_photo_url(ref, api_key)
+    photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference={photos[0].get('photo_reference')}&key={api_key}" if photos else ""
 
-    # Opening hours as a readable string
-    hours_text = ""
-    hours = details.get("opening_hours", {})
-    if hours.get("weekday_text"):
-        hours_text = " | ".join(hours["weekday_text"])
-
-    category_label = MERIDIAN_CATEGORIES.get(meridian_category, {}).get("label", meridian_category)
-
-    # Detect chain — flag for reviewer, don't auto-exclude
-    chain_flag = detect_chain_flag(name)
-
+    cat_config = MERIDIAN_CATEGORIES.get(meridian_category, {})
+    
+    # Format tags as a PostgreSQL array string representation
+    tags = details.get("types", [])
+    tags_str = "{" + ",".join(f'"{t}"' for t in tags) + "}" if tags else "{}"
+    
+    # Determine ranking tier based on chain status
+    ranking_tier = "standard" if not is_chain else "low"
+    
     return {
-        # Core identity
-        "Name": name,
-        "Category": category_label,
-        "Category Key": meridian_category,
-        "Address": address,
-        "Latitude": lat,
-        "Longitude": lng,
-        # Contact
-        "Phone": phone,
-        "Website": website,
-        "Google Maps URL": maps_url,
-        # Media
-        "Photo URL (raw)": photo_url,
-        # Editorial
-        "Google Summary": editorial,
-        "Opening Hours": hours_text,
-        # Metadata
-        "Google Rating": rating,
-        "Google Review Count": review_count,
-        "Google Types (raw)": google_types,
-        "Google Place ID": details.get("place_id") or place.get("place_id", ""),
-        "Source": "Google Places",
-        "Scrape Date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
-        "last_synced_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        # Curation fields
-        "Status": "Pending",
-        "Chain Flag": chain_flag,  # ← new field
-        "Editor Notes": "",
-        "Story Draft": "",
+        "name": name,
+        "category": cat_config.get("label", meridian_category),
+        "category_key": meridian_category,
+        "category_slug": cat_config.get("slug", slugify(meridian_category)),
+        "address": address,
+        "city_slug": slugify(city),
+        "area_slug": slugify(area),
+        "business_slug": slugify(name),
+        "latitude": (details.get("geometry") or place.get("geometry", {})).get("location", {}).get("lat"),
+        "longitude": (details.get("geometry") or place.get("geometry", {})).get("location", {}).get("lng"),
+        "phone": details.get("formatted_phone_number", ""),
+        "website": website,
+        "email": social_data["Email"],
+        "google_maps_url": details.get("url", ""),
+        "photo_url": photo_url,
+        "image_url": photo_url,
+        "google_summary": details.get("editorial_summary", {}).get("overview", ""),
+        "opening_hours": " | ".join(details.get("opening_hours", {}).get("weekday_text", [])),
+        "google_rating": details.get("rating"),
+        "google_review_count": details.get("user_ratings_total"),
+        "google_place_id": details.get("place_id") or place.get("place_id", ""),
+        "tags": tags_str,
+        "chain_flag": chain_flag,
+        "social_facebook": social_data["Social Facebook"],
+        "social_instagram": social_data["Social Instagram"],
+        "social_twitter": social_data["Social Twitter"],
+        "social_tiktok": social_data["Social Tiktok"],
+        "social_linkedin": social_data["Social Linkedin"],
+        "social_youtube": social_data["Social Youtube"],
+        "status": "pending",
+        "ranking_tier": ranking_tier,
+        "source": "Google Places",
+        "scrape_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "last_synced_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     }
 
+def list_airtable_fields(api_key: str, base_id: str, table_name: str) -> None:
+    """List all field names in the Airtable table (for debugging)."""
+    if not AIRTABLE_AVAILABLE:
+        logging.error("Airtable not installed. Install with: pip install pyairtable")
+        return
+    
+    try:
+        api = AirtableApi(api_key)
+        table = api.table(base_id, table_name)
+        schema = table.schema()
+        # Get field names from schema
+        field_names = [field.name for field in schema.fields]
+        
+        logging.info(f"Fields in Airtable table '{table_name}':")
+        for fname in sorted(field_names):
+            logging.info(f"  - {fname}")
+    except Exception as e:
+        logging.error(f"Failed to list Airtable fields: {e}")
 
-# ─────────────────────────────────────────────
-# AIRTABLE PUSH
-# ─────────────────────────────────────────────
-
-def push_to_airtable(records: list[dict], api_key: str,
-                     base_id: str, table_name: str) -> None:
-    """
-    Upsert records to Airtable, matching on 'Google Place ID' to
-    avoid duplicating existing candidates.
+def load_csv_and_push(csv_filepath: str, api_key: str, base_id: str, table_name: str) -> None:
+    """Load an existing CSV and push to Airtable without scraping.
+    
+    Automatically maps CSV column names to Airtable field names.
     """
     if not AIRTABLE_AVAILABLE:
-        logging.error("pyairtable not installed. Run: pip install pyairtable")
+        logging.error("Airtable not installed. Install with: pip install pyairtable")
         return
+    
+    if not os.path.exists(csv_filepath):
+        logging.error(f"CSV file not found: {csv_filepath}")
+        return
+    
+    # Get column mapping for field name translation
+    mapping = get_column_mapping()
+    
+    records = []
+    try:
+        with open(csv_filepath, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # Rename columns according to mapping
+                mapped_row = {}
+                for csv_col, at_field in mapping.items():
+                    if csv_col in row and row[csv_col]:
+                        mapped_row[at_field] = row[csv_col]
+                # Always include google_place_id as key field, even if other fields are empty
+                if "google_place_id" in row:
+                    mapped_row["google_place_id"] = row["google_place_id"]
+                if mapped_row:  # Only add non-empty rows
+                    records.append(mapped_row)
+        logging.info(f"Loaded {len(records)} records from {csv_filepath}")
+    except Exception as e:
+        logging.error(f"Failed to read CSV: {e}")
+        return
+    
+    if not records:
+        logging.info("No records in CSV.")
+        return
+    
+    logging.info(f"Pushing {len(records)} records to Airtable...")
+    push_to_airtable(records, api_key, base_id, table_name)
+    logging.info("Done!")
 
-    api = AirtableApi(api_key)
-    table = api.table(base_id, table_name)
-
-    # ── Clean records for Airtable ──
-    # Number fields reject empty strings — remove them entirely
-    # so Airtable treats them as blank
-    NUMERIC_FIELDS = {
-        "Latitude", "Longitude", "Google Rating",
-        "Google Review Count", "Distance (m)",
+def get_column_mapping() -> dict:
+    """Return the CSV to Airtable field name mapping (snake_case)."""
+    return {
+        "name": "name",
+        "category": "category",
+        "category_key": "category_key",
+        "category_slug": "category_slug",
+        "address": "address",
+        "city_slug": "city_slug",
+        "area_slug": "area_slug",
+        "business_slug": "business_slug",
+        "latitude": "latitude",
+        "longitude": "longitude",
+        "phone": "phone",
+        "website": "website",
+        "email": "email",
+        "google_maps_url": "google_maps_url",
+        "photo_url": "photo_url",
+        "image_url": "image_url",
+        "google_summary": "google_summary",
+        "opening_hours": "opening_hours",
+        "google_rating": "google_rating",
+        "google_review_count": "google_review_count",
+        "google_place_id": "google_place_id",
+        "tags": "tags",
+        "chain_flag": "chain_flag",
+        "social_facebook": "social_facebook",
+        "social_instagram": "social_instagram",
+        "social_twitter": "social_twitter",
+        "social_tiktok": "social_tiktok",
+        "social_linkedin": "social_linkedin",
+        "social_youtube": "social_youtube",
+        "status": "status",
+        "ranking_tier": "ranking_tier",
+        "source": "source",
+        "scrape_date": "scrape_date",
+        "last_synced_at": "last_synced_at",
     }
 
-    records_for_airtable_api = []
-    for record in records: # Process all records for upsert
-        clean = {}
-        for key, value in record.items():
-            # Skip empty values for numeric fields
-            if key in NUMERIC_FIELDS:
-                if value is None or value == "" or value == "None":
-                    continue  # omit the field entirely
-                try:
-                    # Airtable's number fields can be integers or floats.
-                    # Try converting to int first if it looks like one, otherwise float.
-                    if isinstance(value, str) and value.isdigit():
-                        clean[key] = int(value)
-                    else:
-                        clean[key] = float(value)
-                except (ValueError, TypeError):
-                    continue  # can't parse — omit it
-            else:
-                if value is None:
-                    clean[key] = ""
-                else:
-                    clean[key] = str(value) # Ensure all other fields are strings
-        records_for_airtable_api.append({"fields": clean}) # Wrap the cleaned fields in a 'fields' key
+def get_valid_airtable_fields(api_key: str, base_id: str, table_name: str) -> set:
+    """Get the set of valid field names from Airtable table schema."""
+    if not AIRTABLE_AVAILABLE:
+        return set()
+    
+    try:
+        api = AirtableApi(api_key)
+        table = api.table(base_id, table_name)
+        schema = table.schema()
+        field_names = {field.name for field in schema.fields}
+        logging.debug(f"Found {len(field_names)} fields in Airtable")
+        return field_names
+    except Exception as e:
+        logging.error(f"Failed to get Airtable schema: {e}")
+        return set()
 
-    if not records_for_airtable_api:
-        logging.info("  No records to upsert.")
-        return
+def push_to_airtable(records: list[dict], api_key: str, base_id: str, table_name: str) -> None:
+    if not AIRTABLE_AVAILABLE: return
+    try:
+        api = AirtableApi(api_key)
+        table = api.table(base_id, table_name)
+        
+        # Get valid field names from Airtable schema
+        valid_fields = get_valid_airtable_fields(api_key, base_id, table_name)
+        if not valid_fields:
+            logging.error("Could not determine valid fields. Aborting push.")
+            return
+        
+        # Get column mapping for field name translation
+        mapping = get_column_mapping()
+        
+        formatted = []
+        for r in records:
+            # Map CSV column names to Airtable field names
+            mapped_record = {}
+            for csv_col, airtable_field in mapping.items():
+                # Only include fields that exist in Airtable
+                if airtable_field in valid_fields and csv_col in r and r[csv_col] not in (None, ""):
+                    mapped_record[airtable_field] = r[csv_col]
+            # Always include google_place_id as key field if it exists in Airtable
+            if "google_place_id" in valid_fields and "google_place_id" in r:
+                mapped_record["google_place_id"] = r["google_place_id"]
+            if mapped_record:
+                formatted.append({"fields": mapped_record})
 
-    # Use batch_upsert to create new records or update existing ones
-    # 'Google Place ID' is the unique identifier for matching
-    # typecast=True helps pyairtable convert Python types to Airtable types
-    upserted_count = 0
-    for i in range(0, len(records_for_airtable_api), 10):
-        batch = records_for_airtable_api[i:i + 10]
-        response = table.batch_upsert(batch, key_fields=["Google Place ID"], typecast=True)
-        upserted_count += len(response)
-        time.sleep(0.25)  # stay within Airtable rate limits
-
-    logging.info(f"  ✓ Upserted {upserted_count} records to Airtable (created new or updated existing).")
-
-
-# ─────────────────────────────────────────────
-# CSV EXPORT
-# ─────────────────────────────────────────────
+        if not formatted:
+            logging.warning("No valid records to push after filtering to available fields.")
+            logging.info(f"Available fields in Airtable: {sorted(valid_fields)}")
+            return
+        
+        logging.info(f"Pushing {len(formatted)} records with {len(valid_fields)} available fields...")
+        for i in range(0, len(formatted), 10):
+            try:
+                table.batch_upsert(formatted[i:i+10], key_fields=["google_place_id"], typecast=True)
+                logging.debug(f"Successfully upserted batch {i//10 + 1}")
+                time.sleep(0.25)
+            except Exception as e:
+                logging.error(f"Failed to upsert batch: {e}")
+                continue
+    except Exception as e:
+        logging.error(f"Airtable connection failed, skipping push: {e}")
 
 def save_to_csv(records: list[dict], filepath: str) -> None:
-    if not records:
-        logging.info("No records to save.")
-        return
-    fieldnames = list(records[0].keys())
+    if not records: return
     with open(filepath, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=records[0].keys())
         writer.writeheader()
         writer.writerows(records)
-    logging.info(f"  ✓ Saved {len(records)} records to {filepath}")
 
-
-# ─────────────────────────────────────────────
-# MAIN SCRAPE RUNNER
-# ─────────────────────────────────────────────
-
-# def run_scrape(lat: float, lng: float, radius: int,
-#                category_keys: list[str], api_key: str,
-#                max_details: int = 200) -> list[dict]:
-#     """
-#     Core scrape loop. For each requested category:
-#       1. Run Nearby Search for each Google type
-#       2. Run Text Search for each keyword
-#       3. Deduplicate by place_id
-#       4. Fetch full details for each unique place
-#       5. Filter chains, closed businesses
-#       6. Normalise to Meridian schema
-#     """
-#     all_places: dict[str, tuple[dict, str]] = {}  # place_id → (place, category_key)
-#
-#     for cat_key in category_keys:
-#         cat = MERIDIAN_CATEGORIES.get(cat_key)
-#         if not cat:
-#             logging.warning(f"Unknown category key: {cat_key} — skipping.")
-#             continue
-#
-#         logging.info(f"\n── Scraping category: {cat['label']} ──")
-#
-#         # Nearby search by type
-#         for gtype in cat["google_types"]:
-#             logging.info(f"  Nearby search: type={gtype}")
-#             results = nearby_search(lat, lng, radius, gtype, api_key)
-#             logging.info(f"    → {len(results)} raw results")
-#             for p in results:
-#                 pid = p.get("place_id")
-#                 if pid and pid not in all_places:
-#                     all_places[pid] = (p, cat_key)
-#             time.sleep(0.5)
-#
-#         # Text search by keyword
-#         for kw in cat["keywords"]:
-#             logging.info(f"  Text search: '{kw}'")
-#             results = text_search(lat, lng, radius, kw, api_key)
-#             logging.info(f"    → {len(results)} raw results")
-#             for p in results:
-#                 pid = p.get("place_id")
-#                 if pid and pid not in all_places:
-#                     all_places[pid] = (p, cat_key)
-#             time.sleep(0.5)
-#
-#     logging.info(f"\n── {len(all_places)} unique places found before filtering ──")
-#
-#     # Fetch details + filter + normalise
-#     normalised = []
-#     details_fetched = 0
-#
-#     for place_id, (place, cat_key) in all_places.items():
-#         name = place.get("name", "")
-#
-#         # Pre-filter before spending a Details API call
-#         if is_permanently_closed(place):
-#             logging.debug(f"  SKIP (closed): {name}")
-#             continue
-#
-#         if details_fetched >= max_details:
-#             logging.warning(f"  Reached max_details limit ({max_details}). Stopping early.")
-#             break
-#
-#         logging.info(f"  Fetching details: {name}")
-#         details = get_place_details(place_id, api_key)
-#         details_fetched += 1
-#
-#         record = normalise(place, details, cat_key, api_key)
-#
-#         # Enforce strict radius — Google treats radius as a bias, not a boundary
-#         record_lat = record.get("Latitude")
-#         record_lng = record.get("Longitude")
-#         if record_lat and record_lng:
-#             distance = haversine_metres(lat, lng, float(record_lat), float(record_lng))
-#             record["Distance (m)"] = round(distance)
-#             if distance > radius:
-#                 logging.info(f"  SKIP (out of radius): {name} — {round(distance)}m away")
-#                 continue
-#         else:
-#             record["Distance (m)"] = ""
-#
-#         normalised.append(record)
-#         time.sleep(0.1)  # gentle rate limiting
-#
-#     logging.info(f"\n── {len(normalised)} candidate records after filtering ──")
-#     return normalised
-
-def run_scrape(lat: float, lng: float, radius: int,
-               category_keys: list[str], api_key: str,
-               max_details: int = 200,
-               max_results: int = None,
-               airtable_config: dict = None) -> list[dict]:
-
-    all_places: dict[str, tuple[dict, str]] = {}
-    normalised = []
-    details_fetched = 0
-
+def run_scrape(lat, lng, radius, category_keys, api_key, max_details=200, max_results=None, distance_filter_metres=None):
+    all_places = {}
     for cat_key in category_keys:
         cat = MERIDIAN_CATEGORIES.get(cat_key)
-        if not cat:
-            continue
+        if not cat: continue
+        logging.info(f"Scraping category: {cat['label']}")
+        
+        # PRIORITIZE: Text search by keywords first (finds specific local places)
+        for kw in cat["keywords"]:
+            for p in text_search(lat, lng, radius, kw, api_key):
+                all_places[p["place_id"]] = (p, cat_key)
+        
+        # THEN: Nearby search by type (finds general business types)
+        for gtype in cat["google_types"]:
+            for p in nearby_search(lat, lng, radius, gtype, api_key):
+                all_places[p["place_id"]] = (p, cat_key)
 
-        # ── Early exit if we already have enough ──
-        if max_results and len(normalised) >= max_results:
-            logging.info(f"  Reached {max_results} results — stopping early.")
+    results = []
+    details_count = 0
+    for pid, (place, cat_key) in all_places.items():
+        if details_count >= max_details: 
+            logging.info(f"Reached max details limit: {max_details}")
+            break
+        if max_results and len(results) >= max_results:
+            logging.info(f"Reached max results limit: {max_results}")
             break
 
-        logging.info(f"\n── Scraping category: {cat['label']} ──")
-        category_places = {}
-
-        # Nearby search by type
-        for gtype in cat["google_types"]:
-            if max_results and len(normalised) >= max_results:
-                break
-            logging.info(f"  Nearby search: type={gtype}")
-            results = nearby_search(lat, lng, radius, gtype, api_key)
-            logging.info(f"    → {len(results)} raw results")
-            for p in results:
-                pid = p.get("place_id")
-                if pid and pid not in all_places:
-                    all_places[pid] = (p, cat_key)
-                    category_places[pid] = (p, cat_key)
-            time.sleep(0.5)
-
-        # Text search by keyword
-        for kw in cat["keywords"]:
-            if max_results and len(normalised) >= max_results:
-                break
-            logging.info(f"  Text search: '{kw}'")
-            results = text_search(lat, lng, radius, kw, api_key)
-            logging.info(f"    → {len(results)} raw results")
-            for p in results:
-                pid = p.get("place_id")
-                if pid and pid not in all_places:
-                    all_places[pid] = (p, cat_key)
-                    category_places[pid] = (p, cat_key)
-            time.sleep(0.5)
-
-        # Fetch details + normalise for this category
-        for place_id, (place, ckey) in category_places.items():
-            if max_results and len(normalised) >= max_results:
-                break
-            if details_fetched >= max_details:
-                logging.warning(f"  Reached max_details limit ({max_details}).")
-                break
-
-            name = place.get("name", "")
-            if is_permanently_closed(place):
-                logging.debug(f"  SKIP (closed): {name}")
-                continue
-
-            logging.info(f"  Fetching details: {name}")
-            details = get_place_details(place_id, api_key)
-            details_fetched += 1
-
-            # Relevance check — is this actually the right kind of business?
-            if not is_relevant(place, details, ckey):
-                logging.info(f"  SKIP (not relevant to {ckey}): {name}")
-                continue
-
-            record = normalise(place, details, ckey, api_key)
-
-            # Enforce strict radius
-            record_lat = record.get("Latitude")
-            record_lng = record.get("Longitude")
-            if record_lat and record_lng:
-                distance = haversine_metres(lat, lng, float(record_lat), float(record_lng))
-                record["Distance (m)"] = round(distance)
-                if distance > radius:
-                    logging.info(f"  SKIP (out of radius): {name} — {round(distance)}m away")
+        logging.info(f"Fetching details for: {place.get('name')}")
+        details = get_place_details(pid, api_key)
+        
+        # Post-filter by distance if specified
+        if distance_filter_metres:
+            result_lat = (details.get("geometry") or place.get("geometry", {})).get("location", {}).get("lat")
+            result_lng = (details.get("geometry") or place.get("geometry", {})).get("location", {}).get("lng")
+            if result_lat and result_lng:
+                dist = haversine_metres(lat, lng, result_lat, result_lng)
+                if dist > distance_filter_metres:
+                    logging.debug(f"Skipping {details.get('name')}: {dist}m > {distance_filter_metres}m filter")
                     continue
-            else:
-                record["Distance (m)"] = ""
-
-            normalised.append(record)
-            time.sleep(0.1)
-
-        # Push per category if airtable config provided
-        if airtable_config:
-            cat_records = [r for r in normalised if r.get("Category Key") == cat_key]
-            if cat_records:
-                push_to_airtable(
-                    cat_records,
-                    airtable_config["key"],
-                    airtable_config["base"],
-                    airtable_config["table"],
-                )
-
-    logging.info(f"\n── {len(normalised)} candidate records after filtering ──")
-    logging.info(f"── {details_fetched} Details API calls made ──")
-    return normalised
-
-
-# ─────────────────────────────────────────────
-# CLI
-# ─────────────────────────────────────────────
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Meridian — Google Places scraper",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
-    )
-
-    # Location (mutually exclusive group — pick one)
-    loc_group = parser.add_mutually_exclusive_group(required=False)
-    loc_group.add_argument(
-        "--location", "-l",
-        help='Place name to geocode, e.g. "Hebden Bridge, West Yorkshire"',
-    )
-    loc_group.add_argument(
-        "--postcode", "-p",
-        help='UK postcode, e.g. "HX7 8AB"',
-    )
-    loc_group.add_argument(
-        "--latlng",
-        help='Lat/lng as "lat,lng", e.g. "53.744,-2.011"',
-    )
-
-    # Search radius
-    parser.add_argument(
-        "--radius", "-r",
-        type=int,
-        default=2000,
-        help="Search radius in metres (default: 2000). Max: 50000.",
-    )
-
-    # Categories
-    cat_keys = list(MERIDIAN_CATEGORIES.keys())
-    parser.add_argument(
-        "--categories", "-c",
-        default="all",
-        help=(
-            'Comma-separated category keys to scrape, or "all". '
-            f'Available: {", ".join(cat_keys)}'
-        ),
-    )
-
-    # Output
-    parser.add_argument(
-        "--output", "-o",
-        choices=["airtable", "csv", "both"],
-        default="both",
-        help="Where to send results (default: both)",
-    )
-    parser.add_argument(
-        "--csv-path",
-        default=None,
-        help="Custom CSV output path (default: meridian_candidates_YYYYMMDD.csv)",
-    )
-
-    # Limits
-    parser.add_argument(
-        "--max-details",
-        type=int,
-        default=200,
-        help="Max number of Places Detail API calls per run (default: 200)",
-    )
-
-    # Flags
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print results to terminal only; do not write to Airtable or CSV",
-    )
-    parser.add_argument(
-        "--list-categories",
-        action="store_true",
-        help="Print all available category keys and exit",
-    )
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable debug-level logging",
-    )
-    # Results cutoff
-    parser.add_argument(
-        "--max-results",
-        type=int,
-        default=None,
-        help=(
-            "Maximum number of final results to keep. "
-            "Prioritises closest to search centre, then highest rated. "
-            "Applied after all filtering."
-        ),
-    )
-
-    # Push existing CSV to Airtable
-    parser.add_argument(
-        "--push-csv",
-        type=str,
-        default=None,
-        help=(
-            "Path to an existing Meridian CSV file to push to Airtable. "
-            "Skips scraping entirely. "
-            "Example: --push-csv meridian_candidates_20260406.csv"
-        ),
-    )
-
-    return parser.parse_args()
-
+        
+        # Check relevance before normalizing
+        if not is_relevant_place(details, cat_key):
+            logging.debug(f"Skipping {details.get('name')}: not relevant for category {cat_key}")
+            continue
+        
+        normalized = normalise(place, details, cat_key, api_key)
+        
+        # Skip if normalise returned None (e.g., not operational)
+        if normalized:
+            results.append(normalized)
+        
+        details_count += 1
+        time.sleep(0.1)
+    return results
 
 def main():
-    args = parse_args()
+    load_dotenv()
+    parser = argparse.ArgumentParser(description="Meridian Google Scraper")
+    
+    # Location
+    parser.add_argument("--location", "-l", help="Place name or postcode")
+    parser.add_argument("--radius", "-r", type=int, default=2000, help="Search radius in meters")
+    
+    # Filtering
+    parser.add_argument("--categories", "-c", default="all", help="Comma-separated category keys or 'all'")
+    
+    # Limits
+    parser.add_argument("--max-details", type=int, default=200, help="Max Details API calls")
+    parser.add_argument("--max-results", type=int, default=None, help="Max results to keep")
+    
+    # Distance filtering
+    parser.add_argument("--distance-filter", type=int, default=None, help="Post-filter results within N metres of search location (e.g., 500 for 500m)")
+    
+    # CSV Loading (for pushing existing CSV without scraping)
+    parser.add_argument("--load-csv", help="Load and push existing CSV to Airtable (skip scraping)")
+    
+    # Airtable diagnostics
+    parser.add_argument("--list-airtable-fields", action="store_true", help="List all field names in the Airtable table")
+    
+    # Output
+    parser.add_argument("--output", "-o", choices=["airtable", "csv", "both"], default="both")
+    parser.add_argument("--verbose", "-v", action="store_true")
 
+    args = parser.parse_args()
+    
     # Logging setup
-    level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(message)s")
 
-    if args.list_categories:
-        print("\nMeridian Business Categories\n" + "─" * 40)
-        for key, cat in MERIDIAN_CATEGORIES.items():
-            print(f"  {key:<28} {cat['label']}")
-        print()
-        sys.exit(0)
-
-    # Load environment variables
-    load_dotenv()
-    google_key = os.getenv("GOOGLE_PLACES_API_KEY")
-    if not google_key:
-        logging.error("GOOGLE_PLACES_API_KEY not found in environment / .env file.")
-        sys.exit(1)
-
-    # ── Resolve location ──────────────────────
-    lat, lng = None, None
-
-    if args.latlng:
-        try:
-            lat, lng = map(float, args.latlng.split(","))
-            logging.info(f"Using lat/lng: {lat}, {lng}")
-        except ValueError:
-            logging.error("--latlng must be in format 'lat,lng' e.g. '53.744,-2.011'")
-            sys.exit(1)
-
-    elif args.postcode:
-        logging.info(f"Geocoding postcode: {args.postcode}")
-        coords = geocode_postcode_nominatim(args.postcode)
-        if not coords:
-            # Fallback to Google Geocoding
-            coords = geocode_location(args.postcode, google_key)
-        if not coords:
-            logging.error(f"Could not geocode postcode: {args.postcode}")
-            sys.exit(1)
-        lat, lng = coords
-        logging.info(f"  → {lat}, {lng}")
-
-    elif args.location:
-        logging.info(f"Geocoding location: {args.location}")
-        coords = geocode_location(args.location, google_key)
-        if not coords:
-            logging.error(f"Could not geocode location: {args.location}")
-            sys.exit(1)
-        lat, lng = coords
-        logging.info(f"  → {lat}, {lng}")
-
-    # ── Resolve categories ────────────────────
-    if args.categories == "all":
-        category_keys = list(MERIDIAN_CATEGORIES.keys())
-    else:
-        category_keys = [k.strip() for k in args.categories.split(",")]
-        invalid = [k for k in category_keys if k not in MERIDIAN_CATEGORIES]
-        if invalid:
-            logging.error(f"Unknown category keys: {invalid}. Use --list-categories to see options.")
-            sys.exit(1)
-
-    logging.info(
-        f"\n{'═'*52}\n"
-        f"  Meridian Scraper\n"
-        f"  Location : {lat:.4f}, {lng:.4f}\n"
-        f"  Radius   : {args.radius}m\n"
-        f"  Categories: {len(category_keys)} selected\n"
-        f"  Max details: {args.max_details}\n"
-        f"{'═'*52}"
-    )
-
-    # ── Run scrape ────────────────────────────
-    records = run_scrape(
-        lat=lat, lng=lng,
-        radius=args.radius,
-        category_keys=category_keys,
-        api_key=google_key,
-        max_details=args.max_details,
-    )
-
-    if not records:
-        logging.info("No records collected. Exiting.")
-        sys.exit(0)
-
-    # ── Dry run ───────────────────────────────
-    if args.dry_run:
-        print(f"\n{'─'*52}")
-        print(f"DRY RUN — {len(records)} records collected:\n")
-        for r in records[:20]:
-            print(f"  [{r['Category']}] {r['Name']} — {r['Address']}")
-        if len(records) > 20:
-            print(f"  … and {len(records) - 20} more")
-        print()
-        sys.exit(0)
-
-    # ── Output ────────────────────────────────
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
-
-    if args.output in ("csv", "both"):
-        csv_path = args.csv_path or f"meridian_candidates_{timestamp}.csv"
-        save_to_csv(records, csv_path)
-
-    if args.output in ("airtable", "both"):
-        at_key = os.getenv("AIRTABLE_API_KEY")
-        at_base = os.getenv("AIRTABLE_BASE_ID")
-        at_table = os.getenv("AIRTABLE_TABLE_NAME", "Candidates")
-        if not at_key or not at_base:
-            logging.error(
-                "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must be set in .env to push to Airtable."
-            )
-        else:
-            push_to_airtable(records, at_key, at_base, at_table)
-
-    logging.info("\n✓ Scrape complete.")
-
-# ─────────────────────────────────────────────
-# CSV → AIRTABLE PUSH
-# Push an existing CSV file to Airtable.
-# Useful for reviewing a CSV first, then pushing
-# approved records without re-scraping.
-#
-# Usage:
-#   python scrape_google.py --push-csv meridian_candidates_20260406.csv
-# ─────────────────────────────────────────────
-
-def load_csv(filepath: str) -> list[dict]:
-    """Load records from a Meridian CSV file."""
-    path = Path(filepath)
-    if not path.exists():
-        logging.error(f"CSV file not found: {filepath}")
-        return []
-
-    records = []
-    with open(path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # Clean up numeric fields that CSV stores as strings
-            for field in ["Google Rating", "Google Review Count",
-                          "Latitude", "Longitude", "Distance (m)"]:
-                val = row.get(field, "")
-                if val == "":
-                    continue
-                try:
-                    if field in ("Google Rating", "Latitude", "Longitude"):
-                        row[field] = float(val)
-                    else:
-                        row[field] = int(float(val))
-                except (ValueError, TypeError):
-                    pass
-            records.append(row)
-
-    logging.info(f"  Loaded {len(records)} records from {filepath}")
-    return records
-
-
-def push_csv_to_airtable(filepath: str) -> None:
-    """Load a CSV and push its contents to Airtable."""
-    load_dotenv()
+    # Airtable credentials (needed for any Airtable operation)
     at_key = os.getenv("AIRTABLE_API_KEY")
     at_base = os.getenv("AIRTABLE_BASE_ID")
     at_table = os.getenv("AIRTABLE_TABLE_NAME", "Candidates")
 
-    if not at_key or not at_base:
-        logging.error("AIRTABLE_API_KEY and AIRTABLE_BASE_ID must be set in .env")
-        sys.exit(1)
-
-    records = load_csv(filepath)
-    if not records:
-        logging.info("No records to push.")
+    # If --list-airtable-fields is provided, show field names and exit
+    if args.list_airtable_fields:
+        if not at_key or not at_base:
+            logging.error("Airtable credentials not set. Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env")
+            return
+        list_airtable_fields(at_key, at_base, at_table)
         return
 
-    push_to_airtable(records, at_key, at_base, at_table)
+    # If --load-csv is provided, just load and push (skip scraping)
+    if args.load_csv:
+        if not at_key or not at_base:
+            logging.error("Airtable credentials not set. Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env")
+            return
+        load_csv_and_push(args.load_csv, at_key, at_base, at_table)
+        return
 
-# ─────────────────────────────────────────────
-# RESULTS CUTOFF
-# Trim the final results list to a max count,
-# prioritised by distance from search centre
-# (closest first) then by Google rating.
-# ─────────────────────────────────────────────
-
-def apply_cutoff(records: list[dict], max_results: int) -> list[dict]:
-    """
-    Trim records to max_results, keeping the closest
-    and highest-rated candidates first.
-    """
-    if not max_results or len(records) <= max_results:
-        return records
-
-    def sort_key(r):
-        distance = r.get("Distance (m)", 999999)
-        if distance == "":
-            distance = 999999
-        rating = r.get("Google Rating", 0)
-        if rating == "":
-            rating = 0
-        # Sort by distance ascending, then rating descending
-        return (int(distance), -float(rating))
-
-    sorted_records = sorted(records, key=sort_key)
-    trimmed = sorted_records[:max_results]
-
-    logging.info(
-        f"  Cutoff applied: kept {len(trimmed)} of {len(records)} records "
-        f"(prioritised by proximity, then rating)"
-    )
-    return trimmed
-
-def is_relevant(place: dict, details: dict, category_key: str) -> bool:
-    """
-    Check if a place is actually relevant to the Meridian category
-    we were searching for. Google text search is very loose —
-    this catches the worst mismatches.
-    """
-    cat = MERIDIAN_CATEGORIES.get(category_key, {})
-    expected_types = set(cat.get("google_types", []))
-    expected_keywords = [kw.lower() for kw in cat.get("keywords", [])]
-
-    # Get all type and text signals from the place
-    place_types = set(details.get("types") or place.get("types", []))
-    name = (details.get("name") or place.get("name", "")).lower()
-    editorial = details.get("editorial_summary", {}).get("overview", "").lower()
-
-    # Check 1: Do any Google types overlap?
-    type_match = bool(expected_types & place_types)
-
-    # Check 2: Does the name or editorial summary contain any keywords?
-    keyword_match = any(
-        kw in name or kw in editorial
-        for kw in expected_keywords
-    )
-
-    # Check 3: Reject obviously wrong types
-    junk_types = {
-        "real_estate_agency", "insurance_agency", "lawyer",
-        "accounting", "lodging", "church", "local_government_office",
-        "car_repair", "moving_company", "storage", "funeral_home",
-        "travel_agency",
-    }
-    if place_types & junk_types and not type_match:
-        return False
-
-    return type_match or keyword_match
-
-
-def main():
-    args = parse_args()
-
-    # Logging setup
-    level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
-    # ── List categories mode ──────────────────
-    if args.list_categories:
-        print("\nMeridian Business Categories\n" + "─" * 40)
-        for key, cat in MERIDIAN_CATEGORIES.items():
-            print(f"  {key:<28} {cat['label']}")
-        print()
-        sys.exit(0)
-
-    # ── Push CSV mode (no scraping, no location needed) ──
-    if args.push_csv:
-        logging.info(f"Pushing CSV to Airtable: {args.push_csv}")
-        push_csv_to_airtable(args.push_csv)
-        logging.info("\n✓ CSV push complete.")
-        sys.exit(0)
-
-    # Load environment variables
-    load_dotenv()
+    # Otherwise, do scraping
     google_key = os.getenv("GOOGLE_PLACES_API_KEY")
     if not google_key:
-        logging.error("GOOGLE_PLACES_API_KEY not found in environment / .env file.")
-        sys.exit(1)
+        logging.error("GOOGLE_PLACES_API_KEY not found.")
+        return
 
-    # ── Resolve location ──────────────────────
-    lat, lng = None, None
+    # Geocode
+    coords = geocode_location(args.location, google_key) if args.location else None
+    if not coords:
+        logging.error(f"Could not geocode location: {args.location}")
+        return
 
-    if args.latlng:
-        try:
-            lat, lng = map(float, args.latlng.split(","))
-            logging.info(f"Using lat/lng: {lat}, {lng}")
-        except ValueError:
-            logging.error("--latlng must be in format 'lat,lng' e.g. '53.744,-2.011'")
-            sys.exit(1)
-
-    elif args.postcode:
-        logging.info(f"Geocoding postcode: {args.postcode}")
-        coords = geocode_postcode_nominatim(args.postcode)
-        if not coords:
-            coords = geocode_location(args.postcode, google_key)
-        if not coords:
-            logging.error(f"Could not geocode postcode: {args.postcode}")
-            sys.exit(1)
-        lat, lng = coords
-        logging.info(f"  → {lat}, {lng}")
-
-    elif args.location:
-        logging.info(f"Geocoding location: {args.location}")
-        coords = geocode_location(args.location, google_key)
-        if not coords:
-            logging.error(f"Could not geocode location: {args.location}")
-            sys.exit(1)
-        lat, lng = coords
-        logging.info(f"  → {lat}, {lng}")
-
-    # ── Resolve categories ────────────────────
+    # Categories
     if args.categories == "all":
         category_keys = list(MERIDIAN_CATEGORIES.keys())
     else:
         category_keys = [k.strip() for k in args.categories.split(",")]
-        invalid = [k for k in category_keys if k not in MERIDIAN_CATEGORIES]
-        if invalid:
-            logging.error(f"Unknown category keys: {invalid}. Use --list-categories to see options.")
-            sys.exit(1)
 
-    logging.info(
-        f"\n{'═'*52}\n"
-        f"  Meridian Scraper\n"
-        f"  Location : {lat:.4f}, {lng:.4f}\n"
-        f"  Radius   : {args.radius}m\n"
-        f"  Categories: {len(category_keys)} selected\n"
-        f"  Max details: {args.max_details}\n"
-        f"  Max results: {args.max_results or 'No limit'}\n"
-        f"{'═'*52}"
-    )
-
-    # ── Run scrape ────────────────────────────
+    # Run Scrape
     records = run_scrape(
-        lat=lat, lng=lng,
-        radius=args.radius,
-        category_keys=category_keys,
-        api_key=google_key,
+        lat=coords[0], 
+        lng=coords[1], 
+        radius=args.radius, 
+        category_keys=category_keys, 
+        api_key=google_key, 
         max_details=args.max_details,
         max_results=args.max_results,
+        distance_filter_metres=args.distance_filter
     )
-
+    
     if not records:
-        logging.info("No records collected. Exiting.")
-        sys.exit(0)
+        logging.info("No records found.")
+        return
 
-    # ── Apply cutoff ──────────────────────────
-    if args.max_results:
-        records = apply_cutoff(records, args.max_results)
-
-    # ── Dry run ───────────────────────────────
-    if args.dry_run:
-        print(f"\n{'─'*52}")
-        print(f"DRY RUN — {len(records)} records:\n")
-        for r in records[:20]:
-            dist = r.get("Distance (m)", "?")
-            rating = r.get("Google Rating", "—")
-            print(f"  [{r['Category']}] {r['Name']} — {dist}m — ★{rating}")
-        if len(records) > 20:
-            print(f"  … and {len(records) - 20} more")
-        print()
-        sys.exit(0)
-
-    # ── Output ────────────────────────────────
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M")
-
-    if args.output in ("csv", "both"):
-        csv_path = args.csv_path or f"meridian_candidates_{timestamp}.csv"
-        save_to_csv(records, csv_path)
-
+    # Output handling: ALWAYS save CSV first (safety backup)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    csv_filepath = f"meridian_candidates_{timestamp}.csv"
+    save_to_csv(records, csv_filepath)
+    logging.info(f"✓ Data saved to {csv_filepath}")
+    
+    # Then push to Airtable if requested
     if args.output in ("airtable", "both"):
-        at_key = os.getenv("AIRTABLE_API_KEY")
-        at_base = os.getenv("AIRTABLE_BASE_ID")
-        at_table = os.getenv("AIRTABLE_TABLE_NAME", "Candidates")
-        if not at_key or not at_base:
-            logging.error(
-                "AIRTABLE_API_KEY and AIRTABLE_BASE_ID must be set in .env to push to Airtable."
-            )
-        else:
+        if at_key and at_base:
+            logging.info(f"Pushing {len(records)} records to Airtable...")
             push_to_airtable(records, at_key, at_base, at_table)
+        else:
+            logging.warning("Airtable credentials not set. Data saved to CSV but not pushed to Airtable.")
 
-    logging.info(f"\n✓ Scrape complete. {len(records)} records processed.")
+    logging.info(f"Done. Processed {len(records)} records.")
 
 if __name__ == "__main__":
     main()

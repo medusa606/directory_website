@@ -27,6 +27,7 @@ SETUP:
 import os
 import sys
 import logging
+import urllib.parse
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -93,6 +94,12 @@ def transform_airtable_to_supabase_format(airtable_record: dict) -> dict:
     
     current_time_utc = datetime.now(timezone.utc).isoformat()
 
+    # Logic for Google Maps URL fallback
+    google_maps_url = fields.get("Google Maps URL")
+    if not google_maps_url and fields.get("Address"):
+        encoded_address = urllib.parse.quote(fields.get("Address"))
+        google_maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
+
     supabase_data = {
         "name": fields.get("Name"),
         "category": fields.get("Category"),
@@ -102,39 +109,50 @@ def transform_airtable_to_supabase_format(airtable_record: dict) -> dict:
         "longitude": fields.get("Longitude"),
         "phone": fields.get("Phone"),
         "website": fields.get("Website"),
-        "google_maps_url": fields.get("Google Maps URL"),
+        "email": fields.get("Email"),
+        "google_maps_url": google_maps_url,
         "photo_url": fields.get("Photo URL (raw)"),
         "google_summary": fields.get("Google Summary"),
         "opening_hours": fields.get("Opening Hours"),
         "google_rating": fields.get("Google Rating"),
         "google_review_count": fields.get("Google Review Count"),
-        "google_place_id": fields.get("Google Place ID"), # This will be our unique identifier
+        "google_place_id": fields.get("Google Place ID"),
         "source": fields.get("Source"),
-        "scrape_date": fields.get("Scrape Date"), # YYYY-MM-DD string
-        "status": "Published", # Explicitly set status for Supabase
+        "scrape_date": fields.get("Scrape Date"),
+        "status": "Published",
         "chain_flag": fields.get("Chain Flag"),
         "editor_notes": fields.get("Editor Notes"),
         "story_draft": fields.get("Story Draft"),
         "description": fields.get("Description") or fields.get("Story Draft") or fields.get("Google Summary"), 
-        "tags": [], # For MVP, start with empty list. Could derive from category_key later.
-        "is_featured": False, # Default to False for MVP
+        "tags": fields.get("Tags") or [],
+        "is_featured": fields.get("Is Featured") or False,
         "image_url": fields.get("Image URL") or fields.get("Photo URL (raw)"),
-        "synced_at": current_time_utc, # Timestamp of when it was synced to Supabase
+        "ranking_tier": fields.get("Ranking Tier") or "standard",
+        "category_slug": fields.get("Category Slug"),
+        "city_slug": fields.get("City Slug"),
+        "area_slug": fields.get("Area Slug"),
+        "business_slug": fields.get("Business Slug"),
+        "social_facebook": fields.get("Social Facebook"),
+        "social_instagram": fields.get("Social Instagram"),
+        "social_twitter": fields.get("Social Twitter"),
+        "social_tiktok": fields.get("Social Tiktok"),
+        "social_linkedin": fields.get("Social Linkedin"),
+        "social_youtube": fields.get("Social Youtube"),
+        "synced_at": current_time_utc,
     }
 
-    # Clean up None values for Supabase, especially for numeric fields
+    # Clean up None values for Supabase
     for key, value in supabase_data.items():
         if value is None or value == "":
-            supabase_data[key] = None # Supabase prefers None for nulls
+            supabase_data[key] = None
 
-    # Ensure numeric types are correct (Airtable might return them as strings)
+    # Ensure numeric types are correct
     for num_field in ["latitude", "longitude", "google_rating", "google_review_count"]:
         val = supabase_data.get(num_field)
-        if isinstance(val, str):
+        if isinstance(val, (str, float, int)):
             try:
                 if num_field == "google_review_count":
-                    # Strip commas and handle decimals that might be in a string
-                    clean_val = val.replace(',', '').split('.')[0]
+                    clean_val = str(val).replace(',', '').split('.')[0]
                     supabase_data[num_field] = int(clean_val) if clean_val else None
                 else:
                     supabase_data[num_field] = float(val)
@@ -173,7 +191,7 @@ def upsert_to_supabase(supabase_client: Client, data_to_upsert: list[dict]) -> N
         elif response.error:
             logging.error(f"Error upserting to Supabase: {response.error}")
         else:
-            logging.warning("Upsert to Supabase completed, but response.data is empty and no error reported. Check Supabase logs.")
+            logging.warning("Upsert to Supabase completed, but response.data is empty.")
 
     except Exception as e:
         logging.error(f"An unexpected error occurred during Supabase upsert: {e}")
@@ -185,20 +203,19 @@ def main():
     airtable_records = fetch_approved_airtable_records(airtable_api)
 
     if not airtable_records:
-        logging.info("No approved records found in Airtable to sync to Supabase. Exiting.")
+        logging.info("No approved records found in Airtable. Exiting.")
         return
 
     supabase_records = []
     for record in airtable_records:
         transformed_record = transform_airtable_to_supabase_format(record)
-        # Only add if it has a Google Place ID, which is our unique key for upserting
         if transformed_record.get("google_place_id"):
             supabase_records.append(transformed_record)
         else:
             logging.warning(f"Skipping record due to missing 'Google Place ID': {record.get('fields', {}).get('Name', 'Unknown Name')}")
 
     if not supabase_records:
-        logging.info("No valid records to push to Supabase after transformation. Exiting.")
+        logging.info("No valid records to push to Supabase. Exiting.")
         return
 
     upsert_to_supabase(supabase_client, supabase_records)
