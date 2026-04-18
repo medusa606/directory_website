@@ -1,55 +1,28 @@
 """
 scrape_google.py — Meridian Directory
 ======================================
-Scrapes local business data from the Google Places API and writes
-candidate records to Airtable (or a local CSV for review).
+Scrapes local business data from the Google Places API and saves
+candidate records to a local CSV for curation and upload.
+
+NOTE: Airtable push has been removed. Use upload_to_supabase.py to
+upload enriched CSVs to the database.
 
 SETUP & USAGE
 =============
 
 1. ENVIRONMENT VARIABLES (add to .env file):
    - GOOGLE_PLACES_API_KEY: Your Google Places API key
-   - AIRTABLE_API_KEY: Your Airtable token (optional, for direct push)
-   - AIRTABLE_BASE_ID: Your Airtable base ID (optional, for direct push)
-   - AIRTABLE_TABLE_NAME: Table name in Airtable (optional, defaults to "Candidates")
 
 2. RUNNING THE SCRAPER:
 
-   Basic usage (saves to CSV only):
+   Basic usage (saves to CSV):
    $ python scrape_google.py --location "BS5 0JS" --radius 500 --categories "food_produce"
 
    With result limits:
    $ python scrape_google.py -l "BS5 0JS" -r 500 -c "food_produce" \
      --max-results 100 --max-details 100
 
-   Push directly to Airtable:
-   $ python scrape_google.py -l "BS5 0JS" -r 500 -c "food_produce" --output airtable
-
-   Save CSV AND push to Airtable:
-   $ python scrape_google.py -l "BS5 0JS" -r 500 -c "food_produce" --output both
-
-   Push existing CSV to Airtable (no scraping):
-   $ python scrape_google.py --load-csv meridian_candidates_2026-04-11_161941.csv
-
-3. CSV TO AIRTABLE (Manual Import):
-
-   If you have a CSV and want to import manually:
-   a) Ensure Airtable table has these fields (case-sensitive):
-      - name, category, category_key, category_slug, address
-      - city_slug, area_slug, business_slug
-      - latitude, longitude, phone, website, email
-      - google_maps_url, photo_url, image_url
-      - google_summary, opening_hours
-      - google_rating, google_review_count, google_place_id, tags
-      - chain_flag, social_facebook, social_instagram, social_twitter,
-        social_tiktok, social_linkedin, social_youtube
-      - status, ranking_tier, source, scrape_date
-
-   b) In Airtable: Grid view → + (add) → "Import data" → CSV
-   c) Match columns to fields in Airtable
-   d) Set google_place_id as primary key/unique identifier to avoid duplicates
-
-4. AVAILABLE CATEGORIES:
+3. AVAILABLE CATEGORIES:
    - food_produce: Food shops, bakeries, markets
    - restaurants_cafes: Restaurants and cafés
    - drinks_brewing: Breweries, bars, wineries
@@ -91,13 +64,6 @@ def haversine_metres(lat1, lng1, lat2, lng2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     return R * c
-
-# ── Try importing Airtable; gracefully degrade to CSV if not installed ──
-try:
-    from pyairtable import Api as AirtableApi
-    AIRTABLE_AVAILABLE = True
-except ImportError:
-    AIRTABLE_AVAILABLE = False
 
 # ─────────────────────────────────────────────
 # KNOWN RETAIL CHAINS (to be tagged as chain_flag)
@@ -452,170 +418,6 @@ def normalise(place: dict, details: dict, meridian_category: str, api_key: str) 
         "last_synced_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
     }
 
-def list_airtable_fields(api_key: str, base_id: str, table_name: str) -> None:
-    """List all field names in the Airtable table (for debugging)."""
-    if not AIRTABLE_AVAILABLE:
-        logging.error("Airtable not installed. Install with: pip install pyairtable")
-        return
-    
-    try:
-        api = AirtableApi(api_key)
-        table = api.table(base_id, table_name)
-        schema = table.schema()
-        # Get field names from schema
-        field_names = [field.name for field in schema.fields]
-        
-        logging.info(f"Fields in Airtable table '{table_name}':")
-        for fname in sorted(field_names):
-            logging.info(f"  - {fname}")
-    except Exception as e:
-        logging.error(f"Failed to list Airtable fields: {e}")
-
-def load_csv_and_push(csv_filepath: str, api_key: str, base_id: str, table_name: str) -> None:
-    """Load an existing CSV and push to Airtable without scraping.
-    
-    Automatically maps CSV column names to Airtable field names.
-    """
-    if not AIRTABLE_AVAILABLE:
-        logging.error("Airtable not installed. Install with: pip install pyairtable")
-        return
-    
-    if not os.path.exists(csv_filepath):
-        logging.error(f"CSV file not found: {csv_filepath}")
-        return
-    
-    # Get column mapping for field name translation
-    mapping = get_column_mapping()
-    
-    records = []
-    try:
-        with open(csv_filepath, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                # Rename columns according to mapping
-                mapped_row = {}
-                for csv_col, at_field in mapping.items():
-                    if csv_col in row and row[csv_col]:
-                        mapped_row[at_field] = row[csv_col]
-                # Always include google_place_id as key field, even if other fields are empty
-                if "google_place_id" in row:
-                    mapped_row["google_place_id"] = row["google_place_id"]
-                if mapped_row:  # Only add non-empty rows
-                    records.append(mapped_row)
-        logging.info(f"Loaded {len(records)} records from {csv_filepath}")
-    except Exception as e:
-        logging.error(f"Failed to read CSV: {e}")
-        return
-    
-    if not records:
-        logging.info("No records in CSV.")
-        return
-    
-    logging.info(f"Pushing {len(records)} records to Airtable...")
-    push_to_airtable(records, api_key, base_id, table_name)
-    logging.info("Done!")
-
-def get_column_mapping() -> dict:
-    """Return the CSV to Airtable field name mapping (snake_case)."""
-    return {
-        "name": "name",
-        "category": "category",
-        "category_key": "category_key",
-        "category_slug": "category_slug",
-        "address": "address",
-        "city_slug": "city_slug",
-        "area_slug": "area_slug",
-        "business_slug": "business_slug",
-        "latitude": "latitude",
-        "longitude": "longitude",
-        "phone": "phone",
-        "website": "website",
-        "email": "email",
-        "google_maps_url": "google_maps_url",
-        "photo_url": "photo_url",
-        "image_url": "image_url",
-        "google_summary": "google_summary",
-        "opening_hours": "opening_hours",
-        "google_rating": "google_rating",
-        "google_review_count": "google_review_count",
-        "google_place_id": "google_place_id",
-        "tags": "tags",
-        "chain_flag": "chain_flag",
-        "social_facebook": "social_facebook",
-        "social_instagram": "social_instagram",
-        "social_twitter": "social_twitter",
-        "social_tiktok": "social_tiktok",
-        "social_linkedin": "social_linkedin",
-        "social_youtube": "social_youtube",
-        "status": "status",
-        "ranking_tier": "ranking_tier",
-        "source": "source",
-        "scrape_date": "scrape_date",
-        "last_synced_at": "last_synced_at",
-    }
-
-def get_valid_airtable_fields(api_key: str, base_id: str, table_name: str) -> set:
-    """Get the set of valid field names from Airtable table schema."""
-    if not AIRTABLE_AVAILABLE:
-        return set()
-    
-    try:
-        api = AirtableApi(api_key)
-        table = api.table(base_id, table_name)
-        schema = table.schema()
-        field_names = {field.name for field in schema.fields}
-        logging.debug(f"Found {len(field_names)} fields in Airtable")
-        return field_names
-    except Exception as e:
-        logging.error(f"Failed to get Airtable schema: {e}")
-        return set()
-
-def push_to_airtable(records: list[dict], api_key: str, base_id: str, table_name: str) -> None:
-    if not AIRTABLE_AVAILABLE: return
-    try:
-        api = AirtableApi(api_key)
-        table = api.table(base_id, table_name)
-        
-        # Get valid field names from Airtable schema
-        valid_fields = get_valid_airtable_fields(api_key, base_id, table_name)
-        if not valid_fields:
-            logging.error("Could not determine valid fields. Aborting push.")
-            return
-        
-        # Get column mapping for field name translation
-        mapping = get_column_mapping()
-        
-        formatted = []
-        for r in records:
-            # Map CSV column names to Airtable field names
-            mapped_record = {}
-            for csv_col, airtable_field in mapping.items():
-                # Only include fields that exist in Airtable
-                if airtable_field in valid_fields and csv_col in r and r[csv_col] not in (None, ""):
-                    mapped_record[airtable_field] = r[csv_col]
-            # Always include google_place_id as key field if it exists in Airtable
-            if "google_place_id" in valid_fields and "google_place_id" in r:
-                mapped_record["google_place_id"] = r["google_place_id"]
-            if mapped_record:
-                formatted.append({"fields": mapped_record})
-
-        if not formatted:
-            logging.warning("No valid records to push after filtering to available fields.")
-            logging.info(f"Available fields in Airtable: {sorted(valid_fields)}")
-            return
-        
-        logging.info(f"Pushing {len(formatted)} records with {len(valid_fields)} available fields...")
-        for i in range(0, len(formatted), 10):
-            try:
-                table.batch_upsert(formatted[i:i+10], key_fields=["google_place_id"], typecast=True)
-                logging.debug(f"Successfully upserted batch {i//10 + 1}")
-                time.sleep(0.25)
-            except Exception as e:
-                logging.error(f"Failed to upsert batch: {e}")
-                continue
-    except Exception as e:
-        logging.error(f"Airtable connection failed, skipping push: {e}")
-
 def save_to_csv(records: list[dict], filepath: str) -> None:
     if not records: return
     with open(filepath, "w", newline="", encoding="utf-8") as f:
@@ -696,14 +498,7 @@ def main():
     # Distance filtering
     parser.add_argument("--distance-filter", type=int, default=None, help="Post-filter results within N metres of search location (e.g., 500 for 500m)")
     
-    # CSV Loading (for pushing existing CSV without scraping)
-    parser.add_argument("--load-csv", help="Load and push existing CSV to Airtable (skip scraping)")
-    
-    # Airtable diagnostics
-    parser.add_argument("--list-airtable-fields", action="store_true", help="List all field names in the Airtable table")
-    
     # Output
-    parser.add_argument("--output", "-o", choices=["airtable", "csv", "both"], default="both")
     parser.add_argument("--verbose", "-v", action="store_true")
 
     args = parser.parse_args()
@@ -711,28 +506,6 @@ def main():
     # Logging setup
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(message)s")
 
-    # Airtable credentials (needed for any Airtable operation)
-    at_key = os.getenv("AIRTABLE_API_KEY")
-    at_base = os.getenv("AIRTABLE_BASE_ID")
-    at_table = os.getenv("AIRTABLE_TABLE_NAME", "Candidates")
-
-    # If --list-airtable-fields is provided, show field names and exit
-    if args.list_airtable_fields:
-        if not at_key or not at_base:
-            logging.error("Airtable credentials not set. Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env")
-            return
-        list_airtable_fields(at_key, at_base, at_table)
-        return
-
-    # If --load-csv is provided, just load and push (skip scraping)
-    if args.load_csv:
-        if not at_key or not at_base:
-            logging.error("Airtable credentials not set. Set AIRTABLE_API_KEY and AIRTABLE_BASE_ID in .env")
-            return
-        load_csv_and_push(args.load_csv, at_key, at_base, at_table)
-        return
-
-    # Otherwise, do scraping
     google_key = os.getenv("GOOGLE_PLACES_API_KEY")
     if not google_key:
         logging.error("GOOGLE_PLACES_API_KEY not found.")
@@ -771,15 +544,6 @@ def main():
     csv_filepath = f"meridian_candidates_{timestamp}.csv"
     save_to_csv(records, csv_filepath)
     logging.info(f"✓ Data saved to {csv_filepath}")
-    
-    # Then push to Airtable if requested
-    if args.output in ("airtable", "both"):
-        if at_key and at_base:
-            logging.info(f"Pushing {len(records)} records to Airtable...")
-            push_to_airtable(records, at_key, at_base, at_table)
-        else:
-            logging.warning("Airtable credentials not set. Data saved to CSV but not pushed to Airtable.")
-
     logging.info(f"Done. Processed {len(records)} records.")
 
 if __name__ == "__main__":
