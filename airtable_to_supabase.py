@@ -26,6 +26,7 @@ SETUP:
 
 import os
 import sys
+import json
 import logging
 import urllib.parse
 from datetime import datetime, timezone
@@ -95,49 +96,49 @@ def transform_airtable_to_supabase_format(airtable_record: dict) -> dict:
     current_time_utc = datetime.now(timezone.utc).isoformat()
 
     # Logic for Google Maps URL fallback
-    google_maps_url = fields.get("Google Maps URL")
-    if not google_maps_url and fields.get("Address"):
-        encoded_address = urllib.parse.quote(fields.get("Address"))
+    google_maps_url = fields.get("google_maps_url")
+    if not google_maps_url and fields.get("address"):
+        encoded_address = urllib.parse.quote(fields.get("address"))
         google_maps_url = f"https://www.google.com/maps/search/?api=1&query={encoded_address}"
 
     supabase_data = {
-        "name": fields.get("Name"),
-        "category": fields.get("Category"),
-        "category_key": fields.get("Category Key"),
-        "address": fields.get("Address"),
-        "latitude": fields.get("Latitude"),
-        "longitude": fields.get("Longitude"),
-        "phone": fields.get("Phone"),
-        "website": fields.get("Website"),
-        "email": fields.get("Email"),
+        "name": fields.get("name"),
+        "category": fields.get("category"),
+        "category_key": fields.get("category_key"),
+        "address": fields.get("address"),
+        "latitude": fields.get("latitude"),
+        "longitude": fields.get("longitude"),
+        "phone": fields.get("phone"),
+        "website": fields.get("website"),
+        "email": fields.get("email"),
         "google_maps_url": google_maps_url,
-        "photo_url": fields.get("Photo URL (raw)"),
-        "google_summary": fields.get("Google Summary"),
-        "opening_hours": fields.get("Opening Hours"),
-        "google_rating": fields.get("Google Rating"),
-        "google_review_count": fields.get("Google Review Count"),
-        "google_place_id": fields.get("Google Place ID"),
-        "source": fields.get("Source"),
-        "scrape_date": fields.get("Scrape Date"),
+        "photo_url": fields.get("photo_url"),
+        "google_summary": fields.get("google_summary"),
+        "opening_hours": fields.get("opening_hours"),
+        "google_rating": fields.get("google_rating"),
+        "google_review_count": fields.get("google_review_count"),
+        "google_place_id": fields.get("google_place_id"),
+        "source": fields.get("source"),
+        "scrape_date": fields.get("scrape_date"),
         "status": "Published",
-        "chain_flag": fields.get("Chain Flag"),
+        "chain_flag": fields.get("chain_flag"),
         "editor_notes": fields.get("Editor Notes"),
         "story_draft": fields.get("Story Draft"),
-        "description": fields.get("Description") or fields.get("Story Draft") or fields.get("Google Summary"), 
-        "tags": fields.get("Tags") or [],
-        "is_featured": fields.get("Is Featured") or False,
-        "image_url": fields.get("Image URL") or fields.get("Photo URL (raw)"),
-        "ranking_tier": fields.get("Ranking Tier") or "standard",
-        "category_slug": fields.get("Category Slug"),
-        "city_slug": fields.get("City Slug"),
-        "area_slug": fields.get("Area Slug"),
-        "business_slug": fields.get("Business Slug"),
-        "social_facebook": fields.get("Social Facebook"),
-        "social_instagram": fields.get("Social Instagram"),
-        "social_twitter": fields.get("Social Twitter"),
-        "social_tiktok": fields.get("Social Tiktok"),
-        "social_linkedin": fields.get("Social Linkedin"),
-        "social_youtube": fields.get("Social Youtube"),
+        "description": fields.get("Story Draft") or fields.get("google_summary"), 
+        "tags": fields.get("tags") or [],
+        "is_featured": fields.get("is_featured") or False,
+        "image_url": fields.get("image_url") or fields.get("photo_url"),
+        "ranking_tier": fields.get("ranking_tier") or "standard",
+        "category_slug": fields.get("category_slug"),
+        "city_slug": fields.get("city_slug"),
+        "area_slug": fields.get("area_slug"),
+        "business_slug": fields.get("business_slug"),
+        "social_facebook": fields.get("social_facebook"),
+        "social_instagram": fields.get("social_instagram"),
+        "social_twitter": fields.get("social_twitter"),
+        "social_tiktok": fields.get("social_tiktok"),
+        "social_linkedin": fields.get("social_linkedin"),
+        "social_youtube": fields.get("social_youtube"),
         "synced_at": current_time_utc,
     }
 
@@ -147,19 +148,59 @@ def transform_airtable_to_supabase_format(airtable_record: dict) -> dict:
             supabase_data[key] = None
 
     # Ensure numeric types are correct
-    for num_field in ["latitude", "longitude", "google_rating", "google_review_count"]:
+    # Latitude and Longitude: double precision (float)
+    for num_field in ["latitude", "longitude"]:
         val = supabase_data.get(num_field)
-        if isinstance(val, (str, float, int)):
+        if val is not None and isinstance(val, (str, float, int)):
             try:
-                if num_field == "google_review_count":
-                    clean_val = str(val).replace(',', '').split('.')[0]
-                    supabase_data[num_field] = int(clean_val) if clean_val else None
-                else:
-                    supabase_data[num_field] = float(val)
+                supabase_data[num_field] = float(val)
             except (ValueError, TypeError):
                 supabase_data[num_field] = None
 
-    # Supabase `date` type expects 'YYYY-MM-DD'
+    # Google Rating: real (float)
+    val = supabase_data.get("google_rating")
+    if val is not None and isinstance(val, (str, float, int)):
+        try:
+            supabase_data["google_rating"] = float(val)
+        except (ValueError, TypeError):
+            supabase_data["google_rating"] = None
+
+    # Google Review Count: integer
+    val = supabase_data.get("google_review_count")
+    if val is not None and isinstance(val, (str, float, int)):
+        try:
+            clean_val = str(val).replace(',', '').split('.')[0]
+            supabase_data["google_review_count"] = int(clean_val) if clean_val else None
+        except (ValueError, TypeError):
+            supabase_data["google_review_count"] = None
+
+    # Is Featured: boolean
+    val = supabase_data.get("is_featured")
+    if val is not None:
+        if isinstance(val, bool):
+            pass  # Already boolean
+        elif isinstance(val, str):
+            supabase_data["is_featured"] = val.lower() in ("true", "yes", "1")
+        else:
+            supabase_data["is_featured"] = bool(val)
+
+    # Tags: text array
+    val = supabase_data.get("tags")
+    if val is not None:
+        if isinstance(val, list):
+            pass  # Already a list
+        elif isinstance(val, str):
+            # Try to parse as JSON array or comma-separated
+            try:
+                supabase_data["tags"] = json.loads(val)
+            except (json.JSONDecodeError, ValueError):
+                supabase_data["tags"] = [v.strip() for v in val.split(",") if v.strip()]
+                if not supabase_data["tags"]:
+                    supabase_data["tags"] = []
+        else:
+            supabase_data["tags"] = []
+
+    # Supabase `scrape_date` is stored as text, validate it matches YYYY-MM-DD format
     if supabase_data.get("scrape_date"):
         try:
             datetime.strptime(supabase_data["scrape_date"], "%Y-%m-%d")

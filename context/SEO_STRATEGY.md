@@ -27,7 +27,7 @@ Rank for **local intent + service/trade queries** that Google currently serves p
 ## Link Building
 - Local press/blog outreach when launching in a new area
 - Cross-linking with listed people's own websites
-- Community social sharing (organic, not paid)
+- Community social sharing (organic, affiliate program)
 
 ## What We Don't Do
 - No keyword stuffing or thin auto-generated pages

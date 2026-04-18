@@ -1,0 +1,49 @@
+{
+  "listings_table": "listings",
+  "primary_keys": ["osm_id", "google_place_id"],
+  "delta_fill_fields": [
+    "email",
+    "phone",
+    "website",
+    "opening_hours",
+    "social_facebook",
+    "social_instagram",
+    "social_twitter",
+    "social_tiktok",
+    "social_linkedin",
+    "social_youtube",
+    "photo_url",
+    "image_url",
+    "google_place_id",
+    "google_maps_url",
+    "google_summary",
+    "fsa_rating",
+    "fsa_hygiene_score",
+    "fsa_establishment_id",
+    "wikidata_id"
+  ],
+  "refresh_always_fields": [
+    "google_rating",
+    "google_review_count"
+  ],
+  "known_non_delta_fields": [
+    "name",
+    "address",
+    "city_slug",
+    "area_slug",
+    "business_slug",
+    "latitude",
+    "longitude",
+    "category",
+    "category_key",
+    "category_slug",
+    "chain_flag",
+    "status",
+    "ranking_tier",
+    "source",
+    "osm_id",
+    "scrape_date",
+    "last_synced_at",
+    "tags"
+  ]
+}

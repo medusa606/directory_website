@@ -9,22 +9,12 @@
 ## Current Sprint: [Date Range]
 
 ### 🔴 Must Do
-- [ ] Finalise tech stack decision
 - [ ] Finalise revenue model
-- [ ] Design homepage layout (wireframe)
-- [ ] Define first location/area to launch
-- [ ] Create listing template (what info per person)
 
 ### 🟡 Should Do
 - [ ] Write 3–5 sample listings as prototypes
 - [ ] Draft homepage copy
 - [ ] Set up domain and hosting
-- [ ] Choose and configure CMS/framework
-
-### 🟢 Nice to Have
-- [ ] Design noticeboard feature concept
-- [ ] Create brand asset kit (colours, fonts, logo direction)
-- [ ] Research local competitors/existing directories
 
 ---
 
