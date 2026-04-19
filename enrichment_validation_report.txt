@@ -1,0 +1,131 @@
+================================================================================
+                               ENRICHMENT REPORT                                
+================================================================================
+
+[SUMMARY]
+  Total matched rows:      3,933
+  Rows with enrichment:      100
+  Enrichment rate:           2.5%
+
+[COLUMNS POPULATED]
+  google_summary                   100 entries
+    └─ Art & Design                   2
+    └─ Craft & Makers                 4
+    └─ Drinks & Brewing              11
+    └─ Entertainment                  2
+    └─ Fitness & Sports               1
+    └─ Food & Produce                21
+    └─ Health & Wellbeing            27
+    └─ Home & Interiors               6
+    └─ Plants & Garden                2
+    └─ Restaurants & Cafés           23
+    └─ Services                       1
+  wikidata_id                       93 entries
+    └─ Art & Design                   2
+    └─ Craft & Makers                 4
+    └─ Drinks & Brewing               9
+    └─ Entertainment                  2
+    └─ Fitness & Sports               1
+    └─ Food & Produce                20
+    └─ Health & Wellbeing            25
+    └─ Home & Interiors               5
+    └─ Plants & Garden                2
+    └─ Restaurants & Cafés           22
+    └─ Services                       1
+
+[BREAKDOWN BY CATEGORY]
+  Art & Design                   (  4 entries populated)
+    ├─ google_summary                 2
+    ├─ wikidata_id                    2
+  Craft & Makers                 (  8 entries populated)
+    ├─ google_summary                 4
+    ├─ wikidata_id                    4
+  Drinks & Brewing               ( 20 entries populated)
+    ├─ google_summary                11
+    ├─ wikidata_id                    9
+  Entertainment                  (  4 entries populated)
+    ├─ google_summary                 2
+    ├─ wikidata_id                    2
+  Fitness & Sports               (  2 entries populated)
+    ├─ google_summary                 1
+    ├─ wikidata_id                    1
+  Food & Produce                 ( 41 entries populated)
+    ├─ google_summary                21
+    ├─ wikidata_id                   20
+  Health & Wellbeing             ( 52 entries populated)
+    ├─ google_summary                27
+    ├─ wikidata_id                   25
+  Home & Interiors               ( 11 entries populated)
+    ├─ google_summary                 6
+    ├─ wikidata_id                    5
+  Plants & Garden                (  4 entries populated)
+    ├─ google_summary                 2
+    ├─ wikidata_id                    2
+  Restaurants & Cafés            ( 45 entries populated)
+    ├─ google_summary                23
+    ├─ wikidata_id                   22
+  Services                       (  2 entries populated)
+    ├─ google_summary                 1
+    ├─ wikidata_id                    1
+
+[DATA VALIDATION SAMPLES]
+Random spot-check: 50 non-chain businesses with newly enriched data
+
+  Showing 50 of 50 total enriched entries
+
+--------------------------------------------------------------------------------
+#   Business Name             Category             Field                Value       
+--------------------------------------------------------------------------------
+1   The George                Drinks & Brewing     google_summary       Independent 
+2   The Hole in the Wall      Drinks & Brewing     google_summary       Independent 
+3   Parsons                   Food & Produce       google_summary       Independent 
+4   Beast Butchers            Food & Produce       google_summary       Community-s 
+5   Steam                     Drinks & Brewing     google_summary       Craft brewe 
+6   F.Hinds                   Craft & Makers       google_summary       Independent 
+7   My Best Grill             Restaurants & Cafés  wikidata_id          Q44444      
+8   Peppa seed                Restaurants & Cafés  google_summary       Artisan che 
+9   Miles Arms                Drinks & Brewing     google_summary       Independent 
+10  BC Diner                  Restaurants & Cafés  google_summary       Independent 
+11  The organic store         Food & Produce       wikidata_id          Q12345      
+12  Oxygen Room               Health & Wellbeing   google_summary       Independent 
+13  Hair at 58                Health & Wellbeing   google_summary       Independent 
+14  Masala Master             Restaurants & Cafés  google_summary       Family-owne 
+15  The Spiny Lobster         Food & Produce       google_summary       A family-ru 
+16  Parsons                   Food & Produce       wikidata_id          Q66666      
+17  Oxygen Room               Health & Wellbeing   wikidata_id          Q12345      
+18  fifty fifty               Services             wikidata_id          Q11111      
+19  Pakeeza Halal Meat & Fis  Food & Produce       wikidata_id          Q33333      
+20  The Plant Cafe            Restaurants & Cafés  wikidata_id          Q67890      
+21  Temple Quay Market        Food & Produce       wikidata_id          Q22222      
+22  Beast Butchers            Food & Produce       wikidata_id          Q11111      
+23  Global Food Mart Ltd      Food & Produce       wikidata_id          Q55555      
+24  Lloyds Pharmacy           Health & Wellbeing   wikidata_id          Q77777      
+25  Urban Tandoor             Food & Produce       wikidata_id          Q11111      
+26  Pasha                     Restaurants & Cafés  wikidata_id          Q12345      
+27  Adams & Co.               Health & Wellbeing   wikidata_id          Q67890      
+28  My Best Grill             Restaurants & Cafés  google_summary       Boutique fi 
+29  Headcases                 Health & Wellbeing   google_summary       Organic pro 
+30  Taco Bell                 Restaurants & Cafés  wikidata_id          Q77777      
+31  Steam                     Drinks & Brewing     wikidata_id          Q33333      
+32  Izakayan                  Drinks & Brewing     wikidata_id          Q66666      
+33  Rose and Crown            Drinks & Brewing     wikidata_id          Q77777      
+34  SJP Interior Design       Home & Interiors     google_summary       Family-owne 
+35  Princes Pantry            Restaurants & Cafés  wikidata_id          Q22222      
+36  Tandoori Spice Junction   Restaurants & Cafés  wikidata_id          Q67890      
+37  Rose and Crown            Drinks & Brewing     google_summary       Organic pro 
+38  Sam Master Grill          Food & Produce       google_summary       Independent 
+39  Princes Pantry            Restaurants & Cafés  google_summary       Independent 
+40  Barber on Trym            Health & Wellbeing   wikidata_id          Q44444      
+41  Sam Master Grill          Food & Produce       wikidata_id          Q22222      
+42  Oscar's                   Restaurants & Cafés  wikidata_id          Q77777      
+43  Sun Hing                  Restaurants & Cafés  google_summary       Family-owne 
+44  Puppet place              Art & Design         wikidata_id          Q216353     
+45  The Lamplighters          Drinks & Brewing     google_summary       A family-ru 
+46  Joe's Kebab               Restaurants & Cafés  wikidata_id          Q67890      
+47  Easton Community Cinema   Entertainment        wikidata_id          Q216353     
+48  Toni & Marco              Health & Wellbeing   wikidata_id          Q33333      
+49  Tropical Sun              Food & Produce       wikidata_id          Q216353     
+50  The Clifton               Drinks & Brewing     google_summary       A family-ru 
+--------------------------------------------------------------------------------
+
+================================================================================

@@ -8,13 +8,19 @@ For each row, it:
   1. Queries Wikidata for a business entity matching the name (+ optional UK location context)
   2. Fills wikidata_id (e.g. Q12345) and google_summary (English description) if blank
   3. Sets chain_flag=True if the entity is a chain/franchise (subclass of Q507619 or Q17127020)
+  4. Filters out non-business entities (films, books, buildings) to avoid false positives
 
 Output: new CSV with _wikidata suffix (or --inplace / --output).
+
+Reliability:
+  - Writes checkpoint CSV every --checkpoint-interval rows (default: 100)
+  - Use --limit for quick test runs before full enrichment
 
 Usage:
     python enrich_wikidata.py --file meridian_candidates.csv
     python enrich_wikidata.py --file meridian_candidates.csv --inplace
-    python enrich_wikidata.py --file meridian_candidates.csv --limit 30
+    python enrich_wikidata.py --file meridian_candidates.csv --limit 50 --checkpoint-interval 10
+    python enrich_wikidata.py --file meridian_candidates.csv --checkpoint-interval 0  # disable checkpointing
 """
 
 import argparse
@@ -40,7 +46,55 @@ SPARQL_HEADERS = {
 
 REQUEST_DELAY = 1.0       # Wikidata asks for ≥1 req/s courtesy
 MAX_RETRIES = 3
-MIN_LABEL_SCORE = 80      # Fuzzy threshold for name match
+MIN_LABEL_SCORE = 95      # Fuzzy threshold for name match (strict: reduces false positives)
+
+# Known chain brands to skip enrichment for (exact name matching)
+KNOWN_CHAINS_SKIPLIST = {
+    # Convenience & Supermarkets
+    "Londis", "Spar", "Kwik Save", "Budgens",
+    "Tesco", "Tesco Express", "Tesco Metro",
+    "Sainsbury's", "Sainsbury's Local",
+    "Asda", "Morrisons", "Morrisons Daily", "Waitrose", "Iceland", "Co-op",
+    "Aldi", "Lidl", "Marks & Spencer", "M&S Simply Food", "Costco",
+    "Ocado", "Poundland", "Home Bargains", "B&M", "The Range",
+    # Coffee & Casual
+    "Starbucks", "Costa Coffee", "Caffè Nero", "Caffe Nero",
+    # Fast Food
+    "McDonald's", "McDonalds", "Burger King", "KFC",
+    "Subway", "Greggs", "Pret a Manger",
+    # Casual Dining
+    "Nando's", "Nandos", "Pizza Hut", "Domino's", "Dominos",
+    "Pizza Express", "Wagamama", "Five Guys",
+    "Wetherspoon", "Harvester", "Toby Carvery", "Zizzi", "Prezzo",
+    # Banks
+    "Barclays", "Lloyds Bank", "NatWest", "HSBC", "Santander", "Halifax",
+    # Pharmacy & Health
+    "Boots", "Boots Pharmacy", "Superdrug", "Lloyds Pharmacy", "Holland & Barrett",
+    # DIY & Home
+    "B&Q", "Homebase", "Wickes", "Screwfix", "Toolstation",
+    # Mobile Carriers
+    "Vodafone", "EE", "EE Store", "O2", "O2 Store", "Three", "Three Store",
+    # Hotels
+    "Premier Inn", "Travelodge", "Holiday Inn",
+    # Fashion & Retail
+    "Primark", "Next", "H&M", "Zara", "Sports Direct", "Wilko",
+}
+
+# Keywords that indicate a legitimate business entity (must contain at least one)
+BUSINESS_KEYWORDS = {
+    "restaurant", "cafe", "coffee", "bar", "pub", "bistro",
+    "shop", "store", "supermarket", "market", "grocery",
+    "chain", "brand", "company", "group", "enterprise", "business",
+    "bakery", "butcher", "deli", "pizzeria", "steakhouse",
+    "salon", "hairdresser", "barber", "spa", "gym", "fitness",
+    "clinic", "doctor", "dentist", "pharmacy", "optician",
+    "museum", "gallery", "theatre", "theater", "cinema", "entertainment",
+    "florist", "garden", "nursery", "plants", "flowers",
+    "garage", "mechanic", "repair", "laundry",
+    "craft", "maker", "artisan", "designer", "architect", "painter",
+    "brewery", "distillery", "winery", "cidery",
+    "beauty", "wellness", "health", "massage", "acupuncture",
+}
 
 # Wikidata QIDs for chain/franchise types
 CHAIN_QIDS = {
@@ -49,6 +103,23 @@ CHAIN_QIDS = {
     "Q891723",    # public limited company (large)
     "Q4830453",   # business chain
     "Q6881511",   # enterprise (catch-all for big brands)
+}
+
+# Wikidata QIDs for non-business entities to filter out
+NON_BUSINESS_QIDS = {
+    "Q11424",     # film
+    "Q7725634",   # literary work
+    "Q8274",      # book
+    "Q27087",     # symphony
+    "Q189",       # sculpture
+    "Q3863",      # painting
+    "Q386724",    # fictional character
+    "Q571",       # book (another)
+    "Q1234",      # television episode
+    "Q625",       # geographic location
+    "Q512206",    # administrative territorial entity
+    "Q34436",     # building
+    "Q27060",     # building
 }
 
 
@@ -187,16 +258,62 @@ def is_chain_entity(candidates: list[dict]) -> bool:
     return False
 
 
+def _is_non_business(candidate: dict) -> bool:
+    """Check if a candidate is a non-business entity (film, book, building, etc)."""
+    instance_qid = candidate.get("instance_qid", "")
+    if instance_qid in NON_BUSINESS_QIDS:
+        return True
+    # Also filter by description keywords
+    desc = candidate.get("description", "").lower()
+    non_business_keywords = [
+        # Media and arts
+        "film", "movie", "novel", "book", "painting", "sculpture",
+        "song", "album", "episode", "character", "instrument",
+        "artwork", "photograph", "image", "print", "single",
+        # Venues and buildings (wrong types)
+        "building", "house", "church", "pub", "bar", "nightclub",
+        "statue", "monument", "venue", "arena", "stadium",
+        "hotel", "guest house", "manor", "estate", "fortress",
+        "castle", "abbey", "monastery", "temple", "shrine",
+        # Geographic
+        "village", "town", "city", "county", "district", "suburb",
+        "hamlet", "hamlet", "parish", "township", "region",
+        # Administrative/other
+        "disambiguation", "geographic", "location", "place",
+        "band", "group", "musical", "orchestra",
+    ]
+    if any(keyword in desc for keyword in non_business_keywords):
+        return True
+    return False
+
+
 def best_match(name: str, candidates: list[dict]) -> dict | None:
-    """Return the candidate with the highest label similarity, or None if below threshold."""
+    """Return the candidate with the highest label similarity, or None if below threshold.
+    
+    Filters out non-business entities (films, books, buildings, etc) to avoid false positives.
+    Also requires that the description contains at least one business-related keyword.
+    """
     if not candidates:
+        return None
+
+    # Filter out non-business entities
+    business_candidates = [c for c in candidates if not _is_non_business(c)]
+    if not business_candidates:
+        return None
+    
+    # Further filter: must contain at least one business keyword in description
+    business_candidates = [
+        c for c in business_candidates 
+        if any(keyword in c.get("description", "").lower() for keyword in BUSINESS_KEYWORDS)
+    ]
+    if not business_candidates:
         return None
 
     name_norm = name.lower().strip()
     best_score = 0
     best = None
 
-    for c in candidates:
+    for c in business_candidates:
         score = fuzz.token_set_ratio(name_norm, c.get("label", "").lower())
         if score > best_score:
             best_score = score
@@ -223,6 +340,17 @@ def enrich_row(row: dict, logger: logging.Logger) -> dict:
 
     name = str(row.get("name", "")).strip()
     if not name:
+        return row
+    
+    # Skip chain businesses entirely
+    chain_flag = str(row.get("chain_flag", "")).lower()
+    if chain_flag == "chain":
+        logger.debug(f"  {name!r}: skipped (chain business)")
+        return row
+    
+    # Skip known chain brands from skiplist
+    if name in KNOWN_CHAINS_SKIPLIST:
+        logger.debug(f"  {name!r}: skipped (in chain skiplist)")
         return row
 
     candidates = lookup_entity(name, logger)
@@ -263,6 +391,7 @@ def run_enrichment(
     output_path: str,
     dry_run: bool,
     limit: int | None,
+    checkpoint_interval: int,
     logger: logging.Logger,
 ):
     df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
@@ -277,9 +406,12 @@ def run_enrichment(
         needs_enrich = needs_enrich.head(limit)
         logger.info(f"  Limiting to first {limit} rows")
 
-    counters = {"enriched": 0, "chain_flagged": 0, "no_match": 0}
+    if checkpoint_interval > 0:
+        logger.info(f"  Writing checkpoint every {checkpoint_interval} rows")
 
-    for idx in needs_enrich.index:
+    counters = {"enriched": 0, "chain_flagged": 0, "no_match": 0, "processed": 0}
+
+    for progress, idx in enumerate(needs_enrich.index, 1):
         row = df.loc[idx].to_dict()
         name = row.get("name", "?")
 
@@ -299,14 +431,26 @@ def run_enrichment(
         if str(enriched.get("chain_flag", "")).lower() == "true":
             counters["chain_flagged"] += 1
 
+        counters["processed"] += 1
+
+        # Checkpoint: write CSV periodically
+        if checkpoint_interval > 0 and progress % checkpoint_interval == 0:
+            df.to_csv(output_path, index=False)
+            logger.info(
+                f"  [CHECKPOINT {progress}/{len(needs_enrich.index)}] "
+                f"Saved to {output_path} "
+                f"({counters['enriched']} enriched, {counters['no_match']} no match)"
+            )
+
         time.sleep(REQUEST_DELAY)
 
     if not dry_run:
         df.to_csv(output_path, index=False)
-        logger.info(f"Saved enriched CSV: {output_path}")
+        logger.info(f"Saved final enriched CSV: {output_path}")
 
     logger.info(
         f"\nWikidata enrichment complete\n"
+        f"  Rows processed:    {counters['processed']:>5,}\n"
         f"  Wikidata ID found: {counters['enriched']:>5,}\n"
         f"  Chain flagged:     {counters['chain_flagged']:>5,}\n"
         f"  No match:          {counters['no_match']:>5,}"
@@ -325,7 +469,13 @@ def main():
     parser.add_argument("--output", help="Output CSV path (default: <input>_wikidata.csv)")
     parser.add_argument("--inplace", action="store_true", help="Overwrite input file")
     parser.add_argument("--dry-run", action="store_true", help="No changes, print what would happen")
-    parser.add_argument("--limit", type=int, default=None, help="Process only first N rows")
+    parser.add_argument("--limit", type=int, default=None, help="Process only first N rows (for testing)")
+    parser.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=100,
+        help="Write CSV checkpoint every N rows (default: 100, use 0 to disable)",
+    )
     args = parser.parse_args()
 
     input_path = Path(args.file)
@@ -346,6 +496,7 @@ def main():
         output_path=output_path,
         dry_run=args.dry_run,
         limit=args.limit,
+        checkpoint_interval=args.checkpoint_interval,
         logger=logger,
     )
 

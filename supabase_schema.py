@@ -23,6 +23,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from postgrest.exceptions import APIError
 
 load_dotenv()
 
@@ -50,33 +51,39 @@ def get_schema(table: str | None = None) -> list[tuple[str, str]]:
     """Return ordered list of (column_name, data_type) for the listings table.
 
     Queries information_schema.columns via the Supabase REST API using the
-    service role key so RLS is bypassed.
+    service role key so RLS is bypassed. Falls back to config if unavailable.
     """
     config = _load_config()
     table_name = table or config.get("listings_table", "listings")
     client = _get_client()
 
-    response = (
-        client.table("information_schema.columns")
-        .select("column_name,data_type,ordinal_position")
-        .eq("table_schema", "public")
-        .eq("table_name", table_name)
-        .order("ordinal_position")
-        .execute()
-    )
+    try:
+        response = (
+            client.table("information_schema.columns")
+            .select("column_name,data_type,ordinal_position")
+            .eq("table_schema", "public")
+            .eq("table_name", table_name)
+            .order("ordinal_position")
+            .execute()
+        )
 
-    if not response.data:
-        # information_schema may not be directly queryable via PostgREST;
-        # fall back to a raw SQL RPC if available, or return empty list with warning.
+        if response.data:
+            return [(row["column_name"], row["data_type"]) for row in response.data]
+    except APIError as e:
         print(
-            f"WARNING: Could not read schema for '{table_name}' via REST. "
-            "Ensure the service role key is used and the table exists. "
+            f"WARNING: Could not read schema for '{table_name}' via REST (API Error: {e.message}). "
             "Falling back to config-derived column list.",
             file=sys.stderr,
         )
         return _fallback_columns(config)
 
-    return [(row["column_name"], row["data_type"]) for row in response.data]
+    # Empty response with no error
+    print(
+        f"WARNING: Could not read schema for '{table_name}' via REST. "
+        "Falling back to config-derived column list.",
+        file=sys.stderr,
+    )
+    return _fallback_columns(config)
 
 
 def get_column_names(table: str | None = None) -> list[str]:

@@ -17,6 +17,9 @@ USAGE
     # Dry run: print counts and sample, no CSV written
     python scrape_osm.py --area "City of Bristol" --dry-run
 
+    # Discover all tags in an area and suggest new categories
+    python scrape_osm.py --area "City of Bristol" --discover-tags
+
     # Scale to any UK area
     python scrape_osm.py --area "Greater Manchester"
     python scrape_osm.py --area "United Kingdom" --timeout 900
@@ -54,13 +57,34 @@ log = logging.getLogger(__name__)
 # KNOWN RETAIL CHAINS
 # ─────────────────────────────────────────────
 KNOWN_CHAINS = {
-    "Iceland", "Tesco", "Sainsbury's", "Asda", "Morrisons", "Waitrose",
-    "M&S Food Hall", "Marks & Spencer", "Budgens", "Co-op", "Lidl", "Aldi",
+    # Convenience & Supermarkets
+    "Londis", "Spar", "Kwik Save", "Budgens",
+    "Tesco", "Tesco Express", "Tesco Metro",
+    "Sainsbury's", "Sainsbury's Local",
+    "Asda", "Morrisons", "Morrisons Daily", "Waitrose", "Iceland", "Co-op",
+    "Aldi", "Lidl", "Marks & Spencer", "M&S Food Hall", "M&S Simply Food", "Costco",
     "Ocado", "Poundland", "Home Bargains", "B&M", "The Range",
-    "McDonald's", "Burger King", "KFC", "Subway", "Pizza Hut", "Domino's",
-    "Costa Coffee", "Starbucks", "Caffè Nero", "Greggs", "Pret a Manger",
-    "Boots", "Superdrug", "Holland & Barrett",
-    "Wetherspoon", "Harvester", "Toby Carvery",
+    # Coffee & Casual
+    "Starbucks", "Costa Coffee", "Caffè Nero", "Caffe Nero",
+    # Fast Food
+    "McDonald's", "McDonalds", "Burger King", "KFC",
+    "Subway", "Greggs", "Pret a Manger",
+    # Casual Dining
+    "Nando's", "Nandos", "Pizza Hut", "Domino's", "Dominos",
+    "Pizza Express", "Wagamama", "Five Guys",
+    "Wetherspoon", "Harvester", "Toby Carvery", "Zizzi", "Prezzo",
+    # Banks
+    "Barclays", "Lloyds Bank", "NatWest", "HSBC", "Santander", "Halifax",
+    # Pharmacy & Health
+    "Boots", "Boots Pharmacy", "Superdrug", "Lloyds Pharmacy", "Holland & Barrett",
+    # DIY & Home
+    "B&Q", "Homebase", "Wickes", "Screwfix", "Toolstation",
+    # Mobile Carriers
+    "Vodafone", "EE", "EE Store", "O2", "O2 Store", "Three", "Three Store",
+    # Hotels
+    "Premier Inn", "Travelodge", "Holiday Inn",
+    # Fashion & Retail
+    "Primark", "Next", "H&M", "Zara", "Sports Direct", "Wilko",
 }
 
 # ─────────────────────────────────────────────
@@ -73,8 +97,9 @@ MERIDIAN_CATEGORIES = {
         "osm_filters": [
             {"key": "shop",   "values": ["bakery", "butcher", "greengrocer", "deli", "fishmonger",
                                           "cheese", "confectionery", "chocolate", "supermarket",
-                                          "convenience", "farm", "organic", "spices", "seafood"]},
-            {"key": "amenity", "values": ["marketplace", "food_court"]},
+                                          "convenience", "farm", "organic", "spices", "seafood",
+                                          "cafe", "kitchen", "takeaway"]},
+            {"key": "amenity", "values": ["marketplace", "food_court", "restaurant"]},
         ],
     },
     "restaurants_cafes": {
@@ -137,13 +162,37 @@ MERIDIAN_CATEGORIES = {
         "label": "Health & Wellbeing",
         "slug": "health-and-wellbeing",
         "osm_filters": [
-            {"key": "amenity",     "values": ["spa", "massage", "sauna"]},
+            {"key": "amenity",     "values": ["spa", "massage", "sauna", "dentist", "doctor", "clinic", "pharmacy", "optician"]},
             {"key": "leisure",     "values": ["fitness_centre", "sports_centre", "yoga", "dance"]},
             {"key": "healthcare",  "values": ["alternative", "therapist", "herbalist",
                                                "acupuncture", "naturopath", "osteopath",
                                                "physiotherapist", "audiologist"]},
             {"key": "shop",        "values": ["nutrition_supplements", "herbalist", "massage",
-                                               "wellness", "beauty", "hairdresser"]},
+                                               "wellness", "beauty", "hairdresser", "cosmetics", "hairdresser_supply"]},
+        ],
+    },
+    "entertainment": {
+        "label": "Entertainment",
+        "slug": "entertainment",
+        "osm_filters": [
+            {"key": "amenity", "values": ["cinema", "theatre", "theater", "museum", "nightclub", "arcade"]},
+            {"key": "leisure", "values": ["cinema", "museum", "theatre", "nightclub"]},
+        ],
+    },
+    "fitness_sports": {
+        "label": "Fitness & Sports",
+        "slug": "fitness-and-sports",
+        "osm_filters": [
+            {"key": "leisure", "values": ["fitness_centre", "swimming_pool", "sports_centre", "bowling_alley", "climbing_wall", "golf_course", "track", "horse_riding", "ice_rink", "sports_hall"]},
+            {"key": "amenity", "values": ["gym", "yoga"]},
+        ],
+    },
+    "services": {
+        "label": "Services",
+        "slug": "services",
+        "osm_filters": [
+            {"key": "shop", "values": ["laundry", "dry_cleaning", "tailor", "repair", "shoemaker", "shoes", "key_maker", "locksmith", "watchmaker"]},
+            {"key": "amenity", "values": ["laundry", "dry_cleaning"]},
         ],
     },
 }
@@ -273,8 +322,12 @@ out body center qt;
 # OVERPASS FETCHER
 # ─────────────────────────────────────────────
 
-def fetch_overpass(query: str, retries: int = 3) -> list[dict]:
-    """Execute an Overpass query and return the list of OSM elements."""
+def fetch_overpass(query: str, retries: int = 5) -> list[dict]:
+    """Execute an Overpass query and return the list of OSM elements.
+    
+    Retries on transient errors (429 rate limit, 504 gateway timeout, timeouts).
+    Uses exponential backoff to avoid overwhelming the server.
+    """
     for attempt in range(1, retries + 1):
         try:
             resp = requests.post(
@@ -287,21 +340,210 @@ def fetch_overpass(query: str, retries: int = 3) -> list[dict]:
             data = resp.json()
             return data.get("elements", [])
         except requests.exceptions.Timeout:
-            log.warning(f"Overpass timeout on attempt {attempt}/{retries}")
+            log.warning(f"Overpass timeout on attempt {attempt}/{retries}, retrying...")
+            if attempt < retries:
+                wait = 10 * (2 ** (attempt - 1))  # 10s, 20s, 40s, 80s, 160s
+                log.info(f"  Waiting {wait}s before retry...")
+                time.sleep(wait)
         except requests.exceptions.HTTPError as e:
-            if resp.status_code == 429:
-                wait = 60 * attempt
-                log.warning(f"Rate limited by Overpass. Waiting {wait}s...")
+            if resp.status_code in (429, 504):
+                # 429: rate limited | 504: gateway timeout (server overloaded)
+                # Both are transient — retry with exponential backoff
+                wait = 10 * (2 ** (attempt - 1))
+                log.warning(
+                    f"Overpass {resp.status_code} on attempt {attempt}/{retries}, "
+                    f"waiting {wait}s before retry..."
+                )
                 time.sleep(wait)
             else:
-                log.error(f"HTTP error: {e}")
+                # Other HTTP errors are not recoverable
+                log.error(f"HTTP error {resp.status_code}: {e}")
                 break
         except Exception as e:
             log.error(f"Overpass request failed: {e}")
             break
-        if attempt < retries:
-            time.sleep(5 * attempt)
+    
+    log.error(f"Overpass query failed after {retries} retries")
     return []
+
+
+# ─────────────────────────────────────────────
+# TAG DISCOVERY
+# ─────────────────────────────────────────────
+
+def discover_tags(area_name: str) -> dict:
+    """Query Overpass to find all business-related tags in the area.
+    
+    Returns a dict with tag keys and their value counts:
+    {
+        "amenity": {"restaurant": 150, "cafe": 80, ...},
+        "shop": {"bakery": 45, "butcher": 20, ...},
+        ...
+    }
+    """
+    # Query for all business-related tag keys
+    query = f"""
+[out:json][timeout:300];
+area["name"="{area_name}"]->.searcharea;
+(
+  node[amenity](area.searcharea);
+  node[shop](area.searcharea);
+  node[craft](area.searcharea);
+  node[leisure](area.searcharea);
+  node[healthcare](area.searcharea);
+  node[tourism](area.searcharea);
+  way[amenity](area.searcharea);
+  way[shop](area.searcharea);
+  way[craft](area.searcharea);
+  way[leisure](area.searcharea);
+  way[healthcare](area.searcharea);
+  way[tourism](area.searcharea);
+);
+out tags;
+"""
+    log.info("Discovering tags in area (this may take a minute)...")
+    elements = fetch_overpass(query, retries=3)
+    log.info(f"  Retrieved {len(elements)} elements")
+
+    # Aggregate by key → value → count
+    tag_counts = {}
+    for el in elements:
+        tags = el.get("tags", {})
+        for key in ("amenity", "shop", "craft", "leisure", "healthcare", "tourism"):
+            value = tags.get(key)
+            if value:
+                if key not in tag_counts:
+                    tag_counts[key] = {}
+                # Handle multiple values separated by semicolon
+                for v in value.split(";"):
+                    v = v.strip()
+                    if v:
+                        tag_counts[key][v] = tag_counts[key].get(v, 0) + 1
+
+    return tag_counts
+
+
+def get_currently_captured_tags() -> dict:
+    """Return set of all tag values currently captured by our categories.
+    
+    Returns dict: {"amenity": {set of values}, "shop": {set}, ...}
+    """
+    captured = {}
+    for cat_key, cat in MERIDIAN_CATEGORIES.items():
+        for f in cat.get("osm_filters", []):
+            key = f["key"]
+            values = set(f["values"])
+            if key not in captured:
+                captured[key] = set()
+            captured[key].update(values)
+    return captured
+
+
+def analyze_tag_gaps(tag_counts: dict, captured: dict) -> dict:
+    """Find tags not in our current categories and group by semantic meaning.
+    
+    Returns dict: {"new_category_suggestion": {"values": [...], "count": N}, ...}
+    """
+    uncaptured = {}
+    
+    for key, value_counts in tag_counts.items():
+        captured_values = captured.get(key, set())
+        for value, count in value_counts.items():
+            if value not in captured_values:
+                if value not in uncaptured:
+                    uncaptured[value] = {"key": key, "count": count, "category": None}
+
+    # Semantic grouping of uncaptured tags
+    semantic_groups = {
+        "Beauty & Personal Care": {
+            "patterns": [
+                "hair", "beauty", "cosmetics", "salon", "barber", "nail",
+                "esthetic", "beautician", "makeup", "grooming"
+            ],
+        },
+        "Health & Medical": {
+            "patterns": [
+                "dentist", "doctor", "clinic", "hospital", "pharmacy",
+                "optician", "physiotherapy", "veterinary", "medical"
+            ],
+        },
+        "Fitness & Sports": {
+            "patterns": [
+                "gym", "fitness", "swimming", "pool", "track", "court",
+                "climbing", "bowling", "skateboard", "golf"
+            ],
+        },
+        "Entertainment": {
+            "patterns": [
+                "cinema", "theater", "theatre", "museum", "exhibition",
+                "nightclub", "karaoke", "arcade"
+            ],
+        },
+        "Services": {
+            "patterns": [
+                "laundry", "dry_cleaning", "repair", "tailor", "shoemaker",
+                "key_maker", "locksmith", "watchmaker"
+            ],
+        },
+        "Food & Hospitality": {
+            "patterns": [
+                "bakery", "butcher", "cafe", "restaurant", "food", "kitchen",
+                "takeaway", "food_court"
+            ],
+        },
+    }
+
+    # Assign uncaptured tags to semantic groups
+    assigned = {}
+    for value, info in uncaptured.items():
+        for group_name, group_data in semantic_groups.items():
+            if any(pattern in value.lower() for pattern in group_data["patterns"]):
+                if group_name not in assigned:
+                    assigned[group_name] = []
+                assigned[group_name].append((value, info["count"], info["key"]))
+                break
+
+    return assigned
+
+
+def print_discovery_report(tag_counts: dict, captured: dict, assigned: dict):
+    """Print a formatted report of tag discovery."""
+    print("\n" + "=" * 80)
+    print("OSM TAG DISCOVERY REPORT".center(80))
+    print("=" * 80)
+
+    # Part 1: Current coverage
+    print("\n[CURRENT COVERAGE BY KEY]")
+    for key in ["amenity", "shop", "craft", "leisure", "healthcare", "tourism"]:
+        captured_count = len(captured.get(key, set()))
+        total_count = len(tag_counts.get(key, {}))
+        coverage_pct = (captured_count / total_count * 100) if total_count > 0 else 0
+        print(f"  {key:<15} {captured_count:>3} / {total_count:>3} tags captured ({coverage_pct:>5.1f}%)")
+
+    # Part 2: Current categories
+    print("\n[CURRENT MERIDIAN CATEGORIES ({} total)]".format(len(MERIDIAN_CATEGORIES)))
+    for cat_key, cat in MERIDIAN_CATEGORIES.items():
+        values_count = sum(len(f["values"]) for f in cat.get("osm_filters", []))
+        print(f"  {cat_key:<20} {values_count:>3} tag values  →  {cat['label']}")
+
+    # Part 3: Suggested new categories
+    print("\n[SUGGESTED NEW CATEGORIES FROM UNCAPTURED TAGS]")
+    total_uncaptured = 0
+    for group_name in sorted(assigned.keys()):
+        values = assigned[group_name]
+        total_uncaptured += len(values)
+        count_sum = sum(v[1] for v in values)  # Sum of occurrences
+        print(f"\n  📌 {group_name} ({len(values)} new tags, {count_sum} total occurrences)")
+        # Show top 5 most common uncaptured tags in this group
+        sorted_values = sorted(values, key=lambda x: x[1], reverse=True)
+        for value, count, key in sorted_values[:5]:
+            print(f"      • {value:<25} (key={key}, count={count})")
+        if len(sorted_values) > 5:
+            print(f"      ... and {len(sorted_values) - 5} more")
+
+    print("\n" + "=" * 80)
+    print(f"SUMMARY: {total_uncaptured} uncaptured tags found across {len(assigned)} semantic groups")
+    print("=" * 80 + "\n")
 
 
 # ─────────────────────────────────────────────
@@ -460,9 +702,10 @@ def run_scrape(
             seen_osm_ids.add(rec["osm_id"])
             all_records.append(rec)
 
-        # Brief pause between category queries to be a good Overpass citizen
+        # Pause between category queries to be a good Overpass citizen
+        # Overpass appreciates spacing; queries are already slow (5-30s each)
         if len(categories) > 1:
-            time.sleep(2)
+            time.sleep(5)
 
     return all_records
 
@@ -478,7 +721,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--area", "-a",
-        required=True,
+        default=None,
         help='OSM admin area name, e.g. "City of Bristol" or "Greater Manchester"',
     )
     parser.add_argument(
@@ -508,6 +751,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="List available category keys and exit",
     )
+    parser.add_argument(
+        "--discover-tags",
+        action="store_true",
+        help="Discover all business-related tags in the area and suggest new categories",
+    )
     return parser.parse_args()
 
 
@@ -519,6 +767,21 @@ def main() -> None:
         for k, v in MERIDIAN_CATEGORIES.items():
             print(f"  {k:<20} {v['label']}")
         return
+
+    if args.discover_tags:
+        if not args.area:
+            sys.exit("ERROR: --discover-tags requires --area")
+        tag_counts = discover_tags(args.area)
+        if not tag_counts:
+            log.error("No tags found. Check that the area name is correct.")
+            return
+        captured = get_currently_captured_tags()
+        assigned = analyze_tag_gaps(tag_counts, captured)
+        print_discovery_report(tag_counts, captured, assigned)
+        return
+
+    if not args.area:
+        sys.exit("ERROR: --area is required for scraping")
 
     categories = [c.strip() for c in args.categories.split(",") if c.strip()]
     invalid = [c for c in categories if c not in MERIDIAN_CATEGORIES]

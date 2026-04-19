@@ -1,0 +1,351 @@
+================================================================================
+                               ENRICHMENT REPORT                                
+================================================================================
+
+[SUMMARY]
+  Total matched rows:      3,933
+  Rows with enrichment:       18
+  Enrichment rate:           0.5%
+
+[COLUMNS POPULATED]
+  google_summary                    18 entries
+    └─ Food & Produce                18
+
+[BREAKDOWN BY CATEGORY]
+  Food & Produce                 ( 18 entries populated)
+    ├─ google_summary                18
+
+[DATA VALIDATION SAMPLES]
+Comparing baseline vs enriched versions (non-chain businesses only)
+
+  Showing 13 of 13 total enriched rows
+
+--------------------------------------------------------------------------------
+SAMPLE #1  |  Square Club (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  business_slug                       square-club
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4553396
+  longitude                           -2.6065951
+  name                                Square Club
+  osm_id                              node/11670174843
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"restaurant"}
+
+ENRICHED (additions only):
+  google_summary                      Dining club in Edwardian London
+
+--------------------------------------------------------------------------------
+SAMPLE #2  |  The Kiln (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  business_slug                       the-kiln
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4480092
+  longitude                           -2.587359
+  name                                The Kiln
+  osm_id                              node/12877052417
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"restaurant"}
+
+ENRICHED (additions only):
+  google_summary                      Former pub in Leeds, West Yorkshire, England, UK
+
+--------------------------------------------------------------------------------
+SAMPLE #3  |  Kwik Save (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  address                             Queen's Road, Bristol
+  business_slug                       kwik-save
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  city_slug                           bristol
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4088478
+  longitude                           -2.6213983
+  name                                Kwik Save
+  osm_id                              node/11466017653
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"supermarket"}
+
+ENRICHED (additions only):
+  google_summary                      British discount supermarket chain that was founded in Wales
+
+--------------------------------------------------------------------------------
+SAMPLE #4  |  Londis (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  address                             92 Queen's Road, Bristol
+  business_slug                       londis
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  city_slug                           bristol
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4090941
+  longitude                           -2.6211467
+  name                                Londis
+  opening_hours                       Mo-Su 05:30-23:00
+  osm_id                              node/11478973267
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"convenience"}
+
+ENRICHED (additions only):
+  google_summary                      Convenience store franchise operating in the United Kingdom
+
+--------------------------------------------------------------------------------
+SAMPLE #5  |  Ragu (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  business_slug                       ragu
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4472857
+  longitude                           -2.5981412
+  name                                Ragu
+  osm_id                              node/13041619238
+  phone                               +44 117 9110218
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"restaurant","italian","mediterranean"}
+  website                             https://www.ragurestaurant.com
+
+ENRICHED (additions only):
+  google_summary                      Male given name
+
+--------------------------------------------------------------------------------
+SAMPLE #6  |  Spar (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  address                             12 Gilda Parade, Bristol, BS14 9HY
+  area_slug                           whitchurch
+  business_slug                       spar
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  city_slug                           bristol
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4138443
+  longitude                           -2.560038
+  name                                Spar
+  osm_id                              node/7817700261
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"convenience"}
+  website                             https://www.spar.co.uk/store-locator/awl26862-spar-gilda-parade
+
+ENRICHED (additions only):
+  google_summary                      Dutch multinational retail chain and franchise brand
+
+--------------------------------------------------------------------------------
+SAMPLE #7  |  PizzaExpress (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  address                             Building 8 Explore Lane, Bristol, BS1 5TY
+  area_slug                           city-centre
+  business_slug                       pizzaexpress
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  city_slug                           bristol
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4499452
+  longitude                           -2.6022227
+  name                                PizzaExpress
+  osm_id                              node/12961242059
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"restaurant","pizza"}
+  website                             https://www.pizzaexpress.com/bristol-harbourside
+
+ENRICHED (additions only):
+  google_summary                      Restaurant group mainly in the United Kingdom
+
+--------------------------------------------------------------------------------
+SAMPLE #8  |  Londis (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  address                             194-196 Wells Road, Bristol, BS4 2AX
+  area_slug                           knowle
+  business_slug                       londis
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  city_slug                           bristol
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4389254
+  longitude                           -2.5723368
+  name                                Londis
+  osm_id                              node/11159406779
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"convenience"}
+
+ENRICHED (additions only):
+  google_summary                      Convenience store franchise operating in the United Kingdom
+
+--------------------------------------------------------------------------------
+SAMPLE #9  |  Heron Foods (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  address                             102-106 East Street, Bristol, BS3 4EY
+  area_slug                           bedminster
+  business_slug                       heron-foods
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  city_slug                           bristol
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4416017
+  longitude                           -2.5982583
+  name                                Heron Foods
+  opening_hours                       Mo-Sa 08:00-18:00; Su 10:00-16:00
+  osm_id                              node/12923053147
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"supermarket"}
+  website                             https://heronfoods.com/store/bedminster/
+
+ENRICHED (additions only):
+  google_summary                      English retail chain founded in 1979 and based in Melton
+
+--------------------------------------------------------------------------------
+SAMPLE #10  |  Blue Ginger (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  address                             36-38 Gilda Parade, Bristol, BS14 9HY
+  area_slug                           whitchurch
+  business_slug                       blue-ginger
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  city_slug                           bristol
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4130925
+  longitude                           -2.5599556
+  name                                Blue Ginger
+  osm_id                              node/7817679484
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"restaurant","bengal"}
+
+ENRICHED (additions only):
+  google_summary                      Hotel in India
+
+--------------------------------------------------------------------------------
+SAMPLE #11  |  Restore (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  business_slug                       restore
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.449892
+  longitude                           -2.6063525
+  name                                Restore
+  osm_id                              node/12959516255
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"deli"}
+
+ENRICHED (additions only):
+  google_summary                      Nonprofit organization in London, United Kingdom
+
+--------------------------------------------------------------------------------
+SAMPLE #12  |  Royalty (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  business_slug                       royalty
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.4072761
+  longitude                           -2.5770598
+  name                                Royalty
+  osm_id                              node/13108531079
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"restaurant"}
+
+ENRICHED (additions only):
+  google_summary                      Variety of grape
+
+--------------------------------------------------------------------------------
+SAMPLE #13  |  Spitfire (Food & Produce)
+--------------------------------------------------------------------------------
+BASELINE:
+  address                             1 Hannover Quay, Bristol, BS1 5JE
+  area_slug                           harbourside
+  business_slug                       spitfire
+  category                            Food & Produce
+  category_key                        food_produce
+  category_slug                       food-and-produce
+  chain_flag                          independent
+  city_slug                           bristol
+  last_synced_at                      2026-04-19 07:40:05
+  latitude                            51.448089
+  longitude                           -2.6018545
+  name                                Spitfire
+  osm_id                              node/13140992986
+  ranking_tier                        standard
+  scrape_date                         2026-04-19
+  source                              OpenStreetMap
+  status                              pending
+  tags                                {"restaurant","american"}
+
+ENRICHED (additions only):
+  google_summary                      Russian ska band
+
+================================================================================

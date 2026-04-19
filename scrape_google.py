@@ -69,11 +69,34 @@ def haversine_metres(lat1, lng1, lat2, lng2):
 # KNOWN RETAIL CHAINS (to be tagged as chain_flag)
 # ─────────────────────────────────────────────
 KNOWN_CHAINS = {
-    # Supermarkets
-    "Iceland", "Tesco", "Sainsbury's", "Asda", "Morrisons", "Waitrose", "M&S Food Hall",
-    "Budgens", "Co-op", "Lidl", "Aldi", "Marks & Spencer", "Ocado",
-    # Other retail
-    "Poundland", "Home Bargains", "B&M", "The Range",
+    # Convenience & Supermarkets
+    "Londis", "Spar", "Kwik Save", "Budgens",
+    "Tesco", "Tesco Express", "Tesco Metro",
+    "Sainsbury's", "Sainsbury's Local",
+    "Asda", "Morrisons", "Morrisons Daily", "Waitrose", "Iceland", "Co-op",
+    "Aldi", "Lidl", "Marks & Spencer", "M&S Food Hall", "M&S Simply Food", "Costco",
+    "Ocado", "Poundland", "Home Bargains", "B&M", "The Range",
+    # Coffee & Casual
+    "Starbucks", "Costa Coffee", "Caffè Nero", "Caffe Nero",
+    # Fast Food
+    "McDonald's", "McDonalds", "Burger King", "KFC",
+    "Subway", "Greggs", "Pret a Manger",
+    # Casual Dining
+    "Nando's", "Nandos", "Pizza Hut", "Domino's", "Dominos",
+    "Pizza Express", "Wagamama", "Five Guys",
+    "Wetherspoon", "Harvester", "Toby Carvery", "Zizzi", "Prezzo",
+    # Banks
+    "Barclays", "Lloyds Bank", "NatWest", "HSBC", "Santander", "Halifax",
+    # Pharmacy & Health
+    "Boots", "Boots Pharmacy", "Superdrug", "Lloyds Pharmacy", "Holland & Barrett",
+    # DIY & Home
+    "B&Q", "Homebase", "Wickes", "Screwfix", "Toolstation",
+    # Mobile Carriers
+    "Vodafone", "EE", "EE Store", "O2", "O2 Store", "Three", "Three Store",
+    # Hotels
+    "Premier Inn", "Travelodge", "Holiday Inn",
+    # Fashion & Retail
+    "Primark", "Next", "H&M", "Zara", "Sports Direct", "Wilko",
 }
 
 # ─────────────────────────────────────────────
@@ -194,7 +217,7 @@ BAD_FOOD_KEYWORDS = {
 def is_relevant_place(details: dict, meridian_category: str) -> bool:
     """Permissive filtering - only rejects obviously wrong categories.
     Trust that most API results are at least in the ballpark.
-    Final filtering happens in Airtable curation.
+    Final filtering happens during CSV curation.
     """
     place_types = set(details.get("types", []))
     place_name = details.get("name", "").lower()
