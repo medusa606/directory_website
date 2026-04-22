@@ -20,30 +20,30 @@
     "fsa_rating",
     "fsa_hygiene_score",
     "fsa_establishment_id",
-    "wikidata_id"
+    "wikidata_id",
+    "address",
+    "chain_flag",
+    "last_synced_at",
+    "area_slug",
+    "city_slug"
   ],
   "refresh_always_fields": [
     "google_rating",
-    "google_review_count"
+    "google_review_count",
+    "status"
   ],
   "known_non_delta_fields": [
     "name",
-    "address",
-    "city_slug",
-    "area_slug",
     "business_slug",
     "latitude",
     "longitude",
     "category",
     "category_key",
     "category_slug",
-    "chain_flag",
-    "status",
     "ranking_tier",
     "source",
     "osm_id",
     "scrape_date",
-    "last_synced_at",
     "tags"
   ]
 }

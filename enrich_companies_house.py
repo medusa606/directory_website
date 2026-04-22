@@ -38,9 +38,32 @@ from rapidfuzz import fuzz
 # ---------------------------------------------------------------------------
 
 CH_API_BASE = "https://api.company-information.service.gov.uk"
-REQUEST_DELAY = 0.12      # ~8 req/s — well within 600/5min limit
-MAX_RETRIES = 3
-MIN_FUZZY_SCORE = 75      # Name similarity threshold
+REQUEST_DELAY = 0.55      # ~1.8 req/s — stays within 600/5min limit
+MAX_RETRIES = 5
+MIN_FUZZY_SCORE = 85      # Name similarity threshold (raised from 75 to reduce false positives)
+
+# Known chains — skip these, they always resolve to the parent PLC
+KNOWN_CHAINS_SKIPLIST = {
+    "Londis", "Spar", "Kwik Save", "Budgens",
+    "Tesco", "Tesco Express", "Tesco Metro",
+    "Sainsbury's", "Sainsbury's Local",
+    "Asda", "Morrisons", "Morrisons Daily", "Waitrose", "Iceland", "Co-op",
+    "Aldi", "Lidl", "Marks & Spencer", "M&S Simply Food", "Costco",
+    "Ocado", "Poundland", "Home Bargains", "B&M", "The Range",
+    "Starbucks", "Costa Coffee", "Caffè Nero", "Caffe Nero",
+    "McDonald's", "McDonalds", "Burger King", "KFC",
+    "Subway", "Greggs", "Pret a Manger",
+    "Nando's", "Nandos", "Pizza Hut", "Domino's", "Dominos",
+    "Pizza Express", "Wagamama", "Five Guys",
+    "Wetherspoon", "Harvester", "Toby Carvery", "Zizzi", "Prezzo",
+    "Cosy Club", "Loungers", "Lounge",
+    "Barclays", "Lloyds Bank", "NatWest", "HSBC", "Santander", "Halifax",
+    "Boots", "Boots Pharmacy", "Superdrug", "Lloyds Pharmacy", "Holland & Barrett",
+    "B&Q", "Homebase", "Wickes", "Screwfix", "Toolstation",
+    "Vodafone", "EE", "EE Store", "O2", "O2 Store", "Three", "Three Store",
+    "Premier Inn", "Travelodge", "Holiday Inn",
+    "Primark", "Next", "H&M", "Zara", "Sports Direct", "Wilko",
+}
 
 # Map CH company status → our status values
 CH_STATUS_MAP = {
@@ -101,7 +124,7 @@ def ch_search(name: str, auth: tuple[str, str], logger: logging.Logger) -> list[
             if resp.status_code == 200:
                 return resp.json().get("items", [])
             if resp.status_code == 429:
-                wait = 10 * attempt
+                wait = 60 * attempt  # wait full minutes for window reset
                 logger.warning(f"CH rate limit, waiting {wait}s …")
                 time.sleep(wait)
             elif resp.status_code == 401:
@@ -129,6 +152,26 @@ def _normalise(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+def _extract_postcode_area(address: str) -> str:
+    """Extract the postcode area prefix (e.g. 'BS') from an address string."""
+    m = re.search(r"\b([A-Z]{1,2})\d", address.upper())
+    return m.group(1) if m else ""
+
+
+def _locality_matches(ch_addr: str, our_address: str, city: str = "bristol") -> bool:
+    """Check if the CH address is in the same locality as our listing."""
+    ch_lower = ch_addr.lower()
+    # Match if CH address contains the city name
+    if city in ch_lower:
+        return True
+    # Match if postcode areas overlap (e.g. both BS*)
+    our_area = _extract_postcode_area(our_address)
+    ch_area = _extract_postcode_area(ch_addr)
+    if our_area and ch_area and our_area == ch_area:
+        return True
+    return False
+
+
 def best_ch_match(
     name: str,
     address: str,
@@ -137,6 +180,7 @@ def best_ch_match(
     """
     Fuzzy-match CH candidates against our business name.
     Returns the best match, or None if below threshold.
+    Requires locality match when address is available.
     """
     name_norm = _normalise(name)
     best_score = 0
@@ -146,8 +190,13 @@ def best_ch_match(
         ch_name = _normalise(c.get("title", ""))
         score = fuzz.token_set_ratio(name_norm, ch_name)
 
-        # Minor boost if address snippet also matches
         ch_addr = (c.get("address_snippet", "") or "").lower()
+
+        # Locality gate: if we have an address, CH address must be in same area
+        if address and ch_addr and not _locality_matches(ch_addr, address):
+            continue
+
+        # Minor boost if address snippet also matches
         if address and any(tok in ch_addr for tok in address.lower().split() if len(tok) > 3):
             score = min(100, score + 5)
 
@@ -174,7 +223,16 @@ def enrich_row(row: dict, auth: tuple[str, str], logger: logging.Logger) -> dict
     if not name:
         return row
 
+    # Skip known chains — they always match the parent PLC, not the local branch
+    if name in KNOWN_CHAINS_SKIPLIST or row.get("chain_flag") == "chain":
+        logger.debug(f"  Skipping chain: {name!r}")
+        return row
+
     address = str(row.get("address", "")).strip()
+    if not address:
+        logger.debug(f"  Skipping {name!r}: no address for CH lookup")
+        return row
+
     candidates = ch_search(name, auth, logger)
 
     if not candidates:

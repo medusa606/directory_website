@@ -391,9 +391,9 @@ def normalise(place: dict, details: dict, meridian_category: str, api_key: str) 
     # Scrape website for socials/email
     social_data = extract_social_and_email(website)
 
-    # Photos
+    # Photos — store raw reference only; never embed API key in CSV
     photos = details.get("photos") or place.get("photos", [])
-    photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference={photos[0].get('photo_reference')}&key={api_key}" if photos else ""
+    google_photo_reference = photos[0].get("photo_reference", "") if photos else ""
 
     cat_config = MERIDIAN_CATEGORIES.get(meridian_category, {})
     
@@ -419,8 +419,9 @@ def normalise(place: dict, details: dict, meridian_category: str, api_key: str) 
         "website": website,
         "email": social_data["Email"],
         "google_maps_url": details.get("url", ""),
-        "photo_url": photo_url,
-        "image_url": photo_url,
+        "photo_url": "",
+        "image_url": "",
+        "google_photo_reference": google_photo_reference,
         "google_summary": details.get("editorial_summary", {}).get("overview", ""),
         "opening_hours": " | ".join(details.get("opening_hours", {}).get("weekday_text", [])),
         "google_rating": details.get("rating"),

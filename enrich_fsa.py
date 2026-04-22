@@ -32,7 +32,7 @@ from rapidfuzz import fuzz
 # Config
 # ---------------------------------------------------------------------------
 
-FSA_API_BASE = "https://api2.ratings.food.gov.uk"
+FSA_API_BASE = "https://api.ratings.food.gov.uk"
 FSA_HEADERS = {"x-api-version": "2"}
 
 # Only enrich rows in these category_key values (food-related)
@@ -195,7 +195,7 @@ def enrich_row(row: dict, logger: logging.Logger) -> dict:
     establishment_id = str(match.get("FHRSID", "")).strip()
 
     row["fsa_rating"] = rating_value if rating_value else None
-    row["fsa_hygiene_score"] = hygiene_score
+    row["fsa_hygiene_score"] = str(hygiene_score) if hygiene_score is not None else None
     row["fsa_establishment_id"] = establishment_id if establishment_id else None
 
     logger.info(

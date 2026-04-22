@@ -7,6 +7,13 @@ Rules:
   - refresh_always_fields (google_rating, google_review_count) → always UPDATE
   - known_non_delta_fields → never touched on existing rows
 
+Pre-upload validation (from schema_definition.json):
+  - Required fields are present and non-empty
+  - Numeric fields contain valid numbers
+  - Boolean fields contain valid booleans
+  - No columns in CSV that don't exist in schema
+  - Rejected rows are written to a separate CSV with rejection reason
+
 Dedup key priority: osm_id first, google_place_id fallback.
 
 Usage:
@@ -32,6 +39,7 @@ from supabase_schema import get_column_names, check_for_new_columns
 # ---------------------------------------------------------------------------
 
 CONFIG_PATH = Path(__file__).parent / "supabase_config.json"
+SCHEMA_PATH = Path(__file__).parent / "schema_definition.json"
 LOG_DIR = Path(__file__).parent
 
 
@@ -82,23 +90,25 @@ def init_client():
     return create_client(url, key)
 
 
-def fetch_existing_keys(client, table: str, logger: logging.Logger) -> tuple[dict, dict]:
+def fetch_existing_keys(client, table: str, logger: logging.Logger) -> tuple[dict, dict, dict]:
     """
-    Returns two dicts:
+    Returns three dicts:
       osm_lookup:    { osm_id: db_row_id }
       google_lookup: { google_place_id: db_row_id }
+      slug_lookup:   { (city_slug, area_slug, business_slug): db_row_id }
     where db_row_id is the Supabase `id` PK for update targeting.
     """
     logger.info("Fetching existing keys from DB …")
     osm_lookup: dict[str, str] = {}
     google_lookup: dict[str, str] = {}
+    slug_lookup: dict[tuple, str] = {}
 
     page_size = 1000
     offset = 0
     while True:
         resp = (
             client.table(table)
-            .select("id,osm_id,google_place_id")
+            .select("id,osm_id,google_place_id,city_slug,area_slug,business_slug")
             .range(offset, offset + page_size - 1)
             .execute()
         )
@@ -107,17 +117,24 @@ def fetch_existing_keys(client, table: str, logger: logging.Logger) -> tuple[dic
             row_id = str(row.get("id", ""))
             osm_id = row.get("osm_id") or ""
             gpid = row.get("google_place_id") or ""
+            city = row.get("city_slug") or ""
+            area = row.get("area_slug") or ""
+            biz = row.get("business_slug") or ""
+            
             if osm_id:
                 osm_lookup[osm_id] = row_id
             if gpid:
                 google_lookup[gpid] = row_id
+            if city and area and biz:
+                slug_lookup[(city, area, biz)] = row_id
         if len(rows) < page_size:
             break
         offset += page_size
 
     logger.info(f"  {len(osm_lookup):,} rows with osm_id, "
-                f"{len(google_lookup):,} rows with google_place_id")
-    return osm_lookup, google_lookup
+                f"{len(google_lookup):,} rows with google_place_id, "
+                f"{len(slug_lookup):,} rows with slug composite")
+    return osm_lookup, google_lookup, slug_lookup
 
 
 def fetch_existing_rows_by_ids(
@@ -189,6 +206,102 @@ def build_delta_payload(
 
 
 # ---------------------------------------------------------------------------
+# Schema validation
+# ---------------------------------------------------------------------------
+
+def load_schema() -> dict:
+    """Load schema_definition.json for type validation."""
+    if not SCHEMA_PATH.exists():
+        return {}
+    with open(SCHEMA_PATH) as f:
+        return json.load(f)
+
+
+def validate_csv(
+    df: pd.DataFrame, logger: logging.Logger
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Validate CSV rows against schema_definition.json.
+
+    Returns:
+        (valid_df, rejected_df) — rejected_df has an extra 'rejection_reason' column.
+    """
+    schema = load_schema()
+    if not schema or "columns" not in schema:
+        logger.warning("No schema_definition.json found — skipping type validation")
+        return df, pd.DataFrame()
+
+    columns = schema["columns"]
+    reject_indices: dict[int, list[str]] = {}  # index → list of reasons
+
+    # Check for CSV columns not in schema
+    unknown_cols = [c for c in df.columns if c not in columns and c != "id"]
+    if unknown_cols:
+        logger.warning(f"CSV columns not in schema (will be ignored on upload): {unknown_cols}")
+
+    # Per-row validation
+    for idx, row in df.iterrows():
+        reasons = []
+
+        # Required fields
+        for col_name, col_def in columns.items():
+            if not col_def.get("nullable", True) and col_name != "id":
+                val = clean_value(row.get(col_name))
+                if val is None:
+                    reasons.append(f"required field '{col_name}' is empty")
+
+        # Numeric fields
+        for col_name in ("latitude", "longitude", "google_rating", "google_review_count"):
+            val = clean_value(row.get(col_name))
+            if val is not None:
+                col_type = columns.get(col_name, {}).get("type", "")
+                if col_type in ("double precision", "real", "integer"):
+                    try:
+                        float(val)
+                    except ValueError:
+                        reasons.append(f"'{col_name}' has non-numeric value: '{val}'")
+
+        # google_rating range check
+        rating_val = clean_value(row.get("google_rating"))
+        if rating_val is not None:
+            try:
+                r = float(rating_val)
+                if r < 0 or r > 5:
+                    reasons.append(f"'google_rating' out of range 0-5: {r}")
+            except ValueError:
+                pass  # already caught above
+
+        # Boolean fields
+        for col_name in ("is_featured", "show_logo", "add_listing_illustration"):
+            val = clean_value(row.get(col_name))
+            if val is not None and val.lower() not in ("true", "false", "1", "0", "t", "f"):
+                reasons.append(f"'{col_name}' has invalid boolean value: '{val}'")
+
+        if reasons:
+            reject_indices[idx] = reasons
+
+    # Split into valid / rejected
+    if reject_indices:
+        rejected_idx = list(reject_indices.keys())
+        rejected_df = df.loc[rejected_idx].copy()
+        rejected_df["rejection_reason"] = [
+            "; ".join(reject_indices[i]) for i in rejected_idx
+        ]
+        valid_df = df.drop(index=rejected_idx)
+        logger.warning(f"Rejected {len(rejected_df)} rows failing validation")
+        for idx, reasons in list(reject_indices.items())[:10]:
+            name = df.loc[idx].get("name", "?")
+            logger.warning(f"  Row '{name}': {'; '.join(reasons)}")
+        if len(reject_indices) > 10:
+            logger.warning(f"  ... and {len(reject_indices) - 10} more")
+    else:
+        valid_df = df
+        rejected_df = pd.DataFrame()
+        logger.info("Schema validation passed — all rows OK")
+
+    return valid_df, rejected_df
+
+
+# ---------------------------------------------------------------------------
 # Upload orchestration
 # ---------------------------------------------------------------------------
 
@@ -215,8 +328,17 @@ def run_upload(
     df = df.where(df != "", other=None)  # Normalise empty strings to None
     logger.info(f"  {len(df):,} rows loaded")
 
+    # Schema validation
+    df, rejected_df = validate_csv(df, logger)
+    if not rejected_df.empty:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        reject_path = LOG_DIR / f"rejected_rows_{ts}.csv"
+        rejected_df.to_csv(reject_path, index=False)
+        logger.warning(f"  {len(rejected_df)} rejected rows saved to {reject_path}")
+    logger.info(f"  {len(df):,} rows passed validation")
+
     # Pre-flight: existing keys
-    osm_lookup, google_lookup = fetch_existing_keys(client, table, logger)
+    osm_lookup, google_lookup, slug_lookup = fetch_existing_keys(client, table, logger)
 
     # Partition rows
     to_insert: list[dict] = []
@@ -226,12 +348,17 @@ def run_upload(
         csv_row = csv_row.to_dict()
         osm_id = clean_value(csv_row.get("osm_id"))
         gpid = clean_value(csv_row.get("google_place_id"))
+        city = clean_value(csv_row.get("city_slug"))
+        area = clean_value(csv_row.get("area_slug"))
+        biz = clean_value(csv_row.get("business_slug"))
 
         db_id = None
         if osm_id and osm_id in osm_lookup:
             db_id = osm_lookup[osm_id]
         elif gpid and gpid in google_lookup:
             db_id = google_lookup[gpid]
+        elif city and area and biz and (city, area, biz) in slug_lookup:
+            db_id = slug_lookup[(city, area, biz)]
 
         if db_id is None:
             to_insert.append(csv_row)
@@ -248,6 +375,7 @@ def run_upload(
         "rating_refreshed": 0,
         "skipped": 0,
         "errors": 0,
+        "rejected": len(rejected_df),
     }
 
     # ----- INSERTs -----
@@ -319,6 +447,7 @@ def run_upload(
         f"  Delta updated:    {stats['delta_updated']:>6,}\n"
         f"  Rating refreshed: {stats['rating_refreshed']:>6,}\n"
         f"  Skipped:          {stats['skipped']:>6,}\n"
+        f"  Rejected:         {stats['rejected']:>6,}\n"
         f"  Errors:           {stats['errors']:>6,}\n"
         f"{'='*50}"
     )

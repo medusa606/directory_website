@@ -1,0 +1,343 @@
+{
+  "table_name": "listings",
+  "last_updated": "2026-04-20",
+  "synced_from": "live Supabase DB",
+  "columns": {
+    "id": {
+      "type": "uuid",
+      "nullable": false,
+      "default": "gen_random_uuid()",
+      "is_primary_key": true,
+      "description": "Unique identifier"
+    },
+    "name": {
+      "type": "text",
+      "nullable": false,
+      "description": "Business name (REQUIRED)"
+    },
+    "category": {
+      "type": "text",
+      "nullable": true,
+      "description": "Business category label"
+    },
+    "address": {
+      "type": "text",
+      "nullable": true,
+      "description": "Full address"
+    },
+    "latitude": {
+      "type": "double precision",
+      "nullable": true,
+      "description": "Geographic latitude"
+    },
+    "longitude": {
+      "type": "double precision",
+      "nullable": true,
+      "description": "Geographic longitude"
+    },
+    "phone": {
+      "type": "text",
+      "nullable": true,
+      "description": "Phone number"
+    },
+    "website": {
+      "type": "text",
+      "nullable": true,
+      "description": "Website URL"
+    },
+    "google_maps_url": {
+      "type": "text",
+      "nullable": true,
+      "description": "Google Maps link"
+    },
+    "photo_url": {
+      "type": "text",
+      "nullable": true,
+      "description": "Primary photo URL (sourced from website scrape, NOT a Google API URL)"
+    },
+    "google_photo_reference": {
+      "type": "text",
+      "nullable": true,
+      "description": "Raw Google Places photo_reference token (safe to store; no API key embedded)"
+    },
+    "google_summary": {
+      "type": "text",
+      "nullable": true,
+      "description": "Google summary/description"
+    },
+    "opening_hours": {
+      "type": "text",
+      "nullable": true,
+      "description": "Opening hours (OSM format)"
+    },
+    "google_rating": {
+      "type": "real",
+      "nullable": true,
+      "description": "Google rating (0-5)"
+    },
+    "google_review_count": {
+      "type": "integer",
+      "nullable": true,
+      "description": "Number of Google reviews"
+    },
+    "google_place_id": {
+      "type": "text",
+      "nullable": true,
+      "unique": true,
+      "description": "Google Places API ID"
+    },
+    "source": {
+      "type": "text",
+      "nullable": true,
+      "description": "Data source (e.g., 'osm', 'google', 'manual')"
+    },
+    "scrape_date": {
+      "type": "text",
+      "nullable": true,
+      "description": "Date when data was scraped"
+    },
+    "status": {
+      "type": "text",
+      "nullable": true,
+      "description": "Business status (e.g., 'active', 'closed', 'unverified')"
+    },
+    "chain_flag": {
+      "type": "text",
+      "nullable": true,
+      "description": "Chain indicator ('chain' or NULL)"
+    },
+    "editor_notes": {
+      "type": "text",
+      "nullable": true,
+      "description": "Internal editor notes"
+    },
+    "story_draft": {
+      "type": "text",
+      "nullable": true,
+      "description": "Draft business story"
+    },
+    "description": {
+      "type": "text",
+      "nullable": true,
+      "description": "Business description"
+    },
+    "tags": {
+      "type": "text[]",
+      "nullable": true,
+      "description": "Array of tags (JSON format: [\"tag1\", \"tag2\"])"
+    },
+    "is_featured": {
+      "type": "boolean",
+      "nullable": true,
+      "description": "Whether business is featured"
+    },
+    "image_url": {
+      "type": "text",
+      "nullable": true,
+      "description": "Image URL"
+    },
+    "category_key": {
+      "type": "text",
+      "nullable": true,
+      "description": "Internal category key (e.g., 'restaurants_cafes')"
+    },
+    "last_synced_at": {
+      "type": "text",
+      "nullable": true,
+      "description": "Last sync timestamp"
+    },
+    "ranking_tier": {
+      "type": "text",
+      "nullable": true,
+      "default": "standard",
+      "description": "Ranking tier for discovery (default: 'standard')"
+    },
+    "category_slug": {
+      "type": "text",
+      "nullable": true,
+      "description": "URL-friendly category slug"
+    },
+    "city_slug": {
+      "type": "text",
+      "nullable": true,
+      "description": "URL-friendly city identifier"
+    },
+    "area_slug": {
+      "type": "text",
+      "nullable": true,
+      "description": "URL-friendly area/neighborhood identifier"
+    },
+    "business_slug": {
+      "type": "text",
+      "nullable": true,
+      "description": "URL-friendly business identifier"
+    },
+    "email": {
+      "type": "text",
+      "nullable": true,
+      "description": "Email address"
+    },
+    "social_facebook": {
+      "type": "text",
+      "nullable": true,
+      "description": "Facebook profile/page URL"
+    },
+    "social_instagram": {
+      "type": "text",
+      "nullable": true,
+      "description": "Instagram profile URL"
+    },
+    "social_twitter": {
+      "type": "text",
+      "nullable": true,
+      "description": "Twitter/X profile URL"
+    },
+    "social_tiktok": {
+      "type": "text",
+      "nullable": true,
+      "description": "TikTok profile URL"
+    },
+    "social_linkedin": {
+      "type": "text",
+      "nullable": true,
+      "description": "LinkedIn profile/company URL"
+    },
+    "social_youtube": {
+      "type": "text",
+      "nullable": true,
+      "description": "YouTube channel URL"
+    },
+    "add_listing_illustration": {
+      "type": "boolean",
+      "nullable": true,
+      "default": false,
+      "description": "Whether to generate AI illustration"
+    },
+    "illustration_status": {
+      "type": "character varying",
+      "nullable": true,
+      "description": "AI illustration generation status"
+    },
+    "illustration_url": {
+      "type": "text",
+      "nullable": true,
+      "description": "AI-generated illustration URL"
+    },
+    "illustration_source_photo": {
+      "type": "text",
+      "nullable": true,
+      "description": "Source photo used for illustration"
+    },
+    "illustration_generated_at": {
+      "type": "timestamp with time zone",
+      "nullable": true,
+      "description": "When illustration was generated"
+    },
+    "founders_story": {
+      "type": "text",
+      "nullable": true,
+      "description": "Founders/history story"
+    },
+    "founders_image": {
+      "type": "text",
+      "nullable": true,
+      "description": "Image of founders/team"
+    },
+    "logo_url": {
+      "type": "text",
+      "nullable": true,
+      "description": "Logo image URL"
+    },
+    "show_logo": {
+      "type": "boolean",
+      "nullable": true,
+      "default": false,
+      "description": "Whether to display logo"
+    },
+    "osm_id": {
+      "type": "text",
+      "nullable": true,
+      "unique": true,
+      "description": "OpenStreetMap node/way ID"
+    },
+    "wikidata_id": {
+      "type": "text",
+      "nullable": true,
+      "description": "Wikidata QID (e.g., 'Q12345')"
+    },
+    "fsa_rating": {
+      "type": "text",
+      "nullable": true,
+      "description": "Food Standards Authority rating"
+    },
+    "fsa_hygiene_score": {
+      "type": "text",
+      "nullable": true,
+      "description": "FSA hygiene score"
+    },
+    "fsa_establishment_id": {
+      "type": "text",
+      "nullable": true,
+      "description": "FSA establishment ID"
+    }
+  },
+  "indexes": [
+    {
+      "name": "listings_pkey",
+      "type": "PRIMARY KEY",
+      "columns": ["id"]
+    },
+    {
+      "name": "listings_google_place_id_key",
+      "type": "UNIQUE",
+      "columns": ["google_place_id"]
+    },
+    {
+      "name": "idx_listing_slugs",
+      "type": "UNIQUE INDEX",
+      "columns": ["city_slug", "area_slug", "business_slug"]
+    },
+    {
+      "name": "idx_listings_osm_id",
+      "type": "UNIQUE INDEX (partial)",
+      "columns": ["osm_id"],
+      "where": "osm_id IS NOT NULL"
+    }
+  ],
+  "validation_rules": {
+    "name": {
+      "required": true,
+      "description": "Every row must have a business name"
+    },
+    "google_place_id": {
+      "unique": true,
+      "description": "No duplicate Google Place IDs allowed"
+    },
+    "osm_id": {
+      "unique": true,
+      "description": "No duplicate OSM IDs allowed (where not null)"
+    },
+    "latitude_longitude": {
+      "must_be_numeric": true,
+      "range": "±90 for lat, ±180 for lon",
+      "both_or_neither": true
+    },
+    "google_rating": {
+      "numeric": true,
+      "min": 0,
+      "max": 5
+    },
+    "google_review_count": {
+      "numeric": true,
+      "min": 0
+    },
+    "boolean_fields": {
+      "fields": ["is_featured", "show_logo", "add_listing_illustration"],
+      "accepts": ["true", "false", "1", "0", "null"]
+    },
+    "tags_array": {
+      "format": "JSON array or pipe-separated",
+      "example": "[\"vegan\", \"gluten-free\"]"
+    }
+  }
+}

@@ -41,22 +41,68 @@ from dotenv import load_dotenv
 
 FIND_PLACE_URL = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
 PLACE_DETAILS_URL = "https://maps.googleapis.com/maps/api/place/details/json"
-PHOTO_URL_TEMPLATE = (
-    "https://maps.googleapis.com/maps/api/place/photo"
-    "?maxwidth=800&photo_reference={ref}&key={key}"
-)
 
-# Minimal fields — avoids Atmosphere (expensive) and is within free tier
+# Fields split across billing tiers:
+#   Basic (free with base Place Details): place_id, name, formatted_address,
+#          business_status, photos, url, type
+#   Contact (1,000 free/month, then $3/1k): opening_hours,
+#          formatted_phone_number, international_phone_number, website
+#   Atmosphere (1,000 free/month, then $5/1k): rating, user_ratings_total,
+#          editorial_summary
+# At --limit 1000, stays within free tier.
 DETAIL_FIELDS = ",".join([
+    # Basic (free)
     "place_id",
     "name",
-    "url",
+    "formatted_address",
+    "business_status",
     "photos",
+    "url",
+    "type",
+    # Contact (1,000 free/month)
+    "opening_hours",
+    "formatted_phone_number",
+    "international_phone_number",
+    "website",
+    # Atmosphere (1,000 free/month)
     "rating",
     "user_ratings_total",
-    "business_status",
     "editorial_summary",
 ])
+
+# National-coverage chains — skip to save API quota.
+# Local multi-site (Nutmeg, Boston Tea Party, Loaf, etc.) are NOT excluded.
+NATIONAL_CHAINS_SKIPLIST = {
+    # Convenience & Supermarkets
+    "Londis", "Spar", "Kwik Save", "Budgens",
+    "Tesco", "Tesco Express", "Tesco Metro",
+    "Sainsbury's", "Sainsbury's Local",
+    "Asda", "Morrisons", "Morrisons Daily", "Waitrose", "Iceland", "Co-op",
+    "Aldi", "Lidl", "Marks & Spencer", "M&S Simply Food", "Costco",
+    "Ocado", "Poundland", "Home Bargains", "B&M", "The Range",
+    # Coffee
+    "Starbucks", "Costa Coffee", "Caffè Nero", "Caffe Nero",
+    # Fast Food
+    "McDonald's", "McDonalds", "Burger King", "KFC",
+    "Subway", "Greggs", "Pret a Manger",
+    # Casual Dining
+    "Nando's", "Nandos", "Pizza Hut", "Domino's", "Dominos",
+    "Pizza Express", "Wagamama", "Five Guys",
+    "Wetherspoon", "Harvester", "Toby Carvery", "Zizzi", "Prezzo",
+    "Cosy Club", "Loungers", "Lounge",
+    # Banks
+    "Barclays", "Lloyds Bank", "NatWest", "HSBC", "Santander", "Halifax",
+    # Pharmacy
+    "Boots", "Boots Pharmacy", "Superdrug", "Lloyds Pharmacy", "Holland & Barrett",
+    # DIY
+    "B&Q", "Homebase", "Wickes", "Screwfix", "Toolstation",
+    # Mobile
+    "Vodafone", "EE", "EE Store", "O2", "O2 Store", "Three", "Three Store",
+    # Hotels
+    "Premier Inn", "Travelodge", "Holiday Inn",
+    # Fashion & Retail
+    "Primark", "Next", "H&M", "Zara", "Sports Direct", "Wilko",
+}
 
 CHECKPOINT_FILENAME = ".google_enrich_checkpoint.json"
 REQUEST_DELAY = 0.2   # 5 req/s (well below 50 QPS limit)
@@ -84,9 +130,9 @@ def setup_logging() -> logging.Logger:
 
 def get_api_key() -> str:
     load_dotenv()
-    key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+    key = os.environ.get("GOOGLE_PLACES_API_KEY", "")
     if not key:
-        raise EnvironmentError("GOOGLE_MAPS_API_KEY not found in .env")
+        raise EnvironmentError("GOOGLE_PLACES_API_KEY not found in .env")
     return key
 
 
@@ -204,6 +250,11 @@ def enrich_row(
     if not name:
         return row
 
+    # Skip national chains — saves API quota for independents
+    if name in NATIONAL_CHAINS_SKIPLIST or row.get("chain_flag") == "chain":
+        logger.debug(f"  Skipping chain: {name!r}")
+        return row
+
     address = str(row.get("address", "")).strip()
 
     # Resolve place_id (delta-fill: use existing if present)
@@ -225,10 +276,11 @@ def enrich_row(
     if not details:
         return row
 
-    # Skip permanently closed
-    if details.get("business_status") in ("CLOSED_PERMANENTLY", "CLOSED_TEMPORARILY"):
+    # Mark permanently/temporarily closed
+    biz_status = details.get("business_status", "")
+    if biz_status in ("CLOSED_PERMANENTLY", "CLOSED_TEMPORARILY"):
         row["status"] = "closed"
-        logger.info(f"  {name!r}: marked closed (Google business_status)")
+        logger.info(f"  {name!r}: marked closed (Google: {biz_status})")
 
     # Always refresh rating + review_count
     rating = details.get("rating")
@@ -238,18 +290,39 @@ def enrich_row(
     if review_count is not None:
         row["google_review_count"] = str(review_count)
 
+    # Delta-fill: address (validate / fill from Google)
+    google_addr = details.get("formatted_address", "")
+    if google_addr and _is_blank(row.get("address")):
+        row["address"] = google_addr
+
+    # Delta-fill: phone
+    phone = details.get("formatted_phone_number") or details.get("international_phone_number", "")
+    if phone and _is_blank(row.get("phone")):
+        row["phone"] = phone
+
+    # Delta-fill: website
+    website = details.get("website", "")
+    if website and _is_blank(row.get("website")):
+        row["website"] = website
+
+    # Delta-fill: opening_hours (weekday_text joined with "; ")
+    oh = details.get("opening_hours", {})
+    weekday_text = oh.get("weekday_text", [])
+    if weekday_text and _is_blank(row.get("opening_hours")):
+        row["opening_hours"] = "; ".join(weekday_text)
+
     # Delta-fill: google_maps_url
     maps_url = details.get("url", "")
     if maps_url and _is_blank(row.get("google_maps_url")):
         row["google_maps_url"] = maps_url
 
-    # Delta-fill: photo_url
-    if _is_blank(row.get("photo_url")):
+    # Delta-fill: google_photo_reference (raw ref only — never embed API key in stored data)
+    if _is_blank(row.get("google_photo_reference")):
         photos = details.get("photos", [])
         if photos:
             ref = photos[0].get("photo_reference", "")
             if ref:
-                row["photo_url"] = PHOTO_URL_TEMPLATE.format(ref=ref, key=api_key)
+                row["google_photo_reference"] = ref
 
     # Delta-fill: google_summary
     if _is_blank(row.get("google_summary")):
@@ -296,21 +369,32 @@ def run_enrichment(
         rows_to_process = rows_to_process[:limit]
         logger.info(f"Processing up to {limit} rows (starting at index {start_index})")
 
-    counters = {"enriched": 0, "no_place_id": 0, "errors": 0}
+    counters = {"enriched": 0, "skipped_chain": 0, "no_place_id": 0, "errors": 0}
 
     for i, idx in enumerate(rows_to_process):
         row = df.loc[idx].to_dict()
         name = row.get("name", "?")
 
         if dry_run:
-            logger.info(f"  [DRY RUN] Would enrich: {name!r}")
+            is_chain = (name in NATIONAL_CHAINS_SKIPLIST
+                        or row.get("chain_flag") == "chain")
+            if is_chain:
+                logger.info(f"  [DRY RUN] Skip chain: {name!r}")
+                counters["skipped_chain"] += 1
+            else:
+                logger.info(f"  [DRY RUN] Would enrich: {name!r}")
             continue
 
         try:
+            old_place_id = row.get("google_place_id")
             enriched = enrich_row(row, api_key, logger)
             df.loc[idx] = pd.Series(enriched)
 
-            if not _is_blank(enriched.get("google_place_id")):
+            # Count outcomes
+            if (enriched.get("name", "") in NATIONAL_CHAINS_SKIPLIST
+                    or enriched.get("chain_flag") == "chain"):
+                counters["skipped_chain"] += 1
+            elif not _is_blank(enriched.get("google_place_id")):
                 counters["enriched"] += 1
             else:
                 counters["no_place_id"] += 1
@@ -323,16 +407,39 @@ def run_enrichment(
         # Save checkpoint every 50 rows
         if (i + 1) % 50 == 0:
             save_checkpoint(csv_path, start_index + i + 1)
+            df.to_csv(output_path, index=False)
             logger.info(f"  Checkpoint saved at row {start_index + i + 1}")
 
+    # ------------------------------------------------------------------
+    # Post-enrichment fixups (applied to ALL rows, not just processed)
+    # ------------------------------------------------------------------
     if not dry_run:
+        city_fixed = 0
+        pending_set = 0
+        for idx in df.index:
+            # city_slug: set "bristol" for all rows where blank
+            if _is_blank(df.at[idx, "city_slug"]):
+                df.at[idx, "city_slug"] = "bristol"
+                city_fixed += 1
+            # status: set "pending" for rows still missing address
+            if _is_blank(df.at[idx, "address"]):
+                current_status = str(df.at[idx, "status"] or "").strip()
+                if current_status not in ("closed", "closing"):
+                    df.at[idx, "status"] = "pending"
+                    pending_set += 1
+
         df.to_csv(output_path, index=False)
         logger.info(f"Saved enriched CSV: {output_path}")
         clear_checkpoint(csv_path)
+        if city_fixed:
+            logger.info(f"  city_slug set to 'bristol': {city_fixed:,}")
+        if pending_set:
+            logger.info(f"  status set to 'pending' (no address): {pending_set:,}")
 
     logger.info(
         f"\nGoogle enrichment complete\n"
         f"  Enriched (has place_id): {counters['enriched']:>5,}\n"
+        f"  Skipped (chain):         {counters['skipped_chain']:>5,}\n"
         f"  No place_id found:       {counters['no_place_id']:>5,}\n"
         f"  Errors:                  {counters['errors']:>5,}"
     )

@@ -1,0 +1,427 @@
+{
+  "bristol-city-centre": {
+    "name": "Bristol city centre",
+    "lat": 51.4566469,
+    "lon": -2.60734
+  },
+  "arnos-vale": {
+    "name": "Arnos Vale",
+    "lat": 51.4405159,
+    "lon": -2.5669834
+  },
+  "ashley-down": {
+    "name": "Ashley Down",
+    "lat": 51.4782874,
+    "lon": -2.5851525
+  },
+  "ashton-gate": {
+    "name": "Ashton Gate",
+    "lat": 51.4398694,
+    "lon": -2.6203405
+  },
+  "ashton-vale": {
+    "name": "Ashton Vale",
+    "lat": 51.4350469,
+    "lon": -2.6238498
+  },
+  "avonmouth": {
+    "name": "Avonmouth",
+    "lat": 51.498926,
+    "lon": -2.695544
+  },
+  "baptist-mills": {
+    "name": "Baptist Mills",
+    "lat": 51.4660392,
+    "lon": -2.5735806
+  },
+  "barton-hill": {
+    "name": "Barton Hill",
+    "lat": 51.4550587,
+    "lon": -2.5638925
+  },
+  "bedminster": {
+    "name": "Bedminster",
+    "lat": 51.4367393,
+    "lon": -2.6042197
+  },
+  "bedminster-down": {
+    "name": "Bedminster Down",
+    "lat": 51.4242721,
+    "lon": -2.6174473
+  },
+  "begbrook": {
+    "name": "Begbrook",
+    "lat": 51.4916717,
+    "lon": -2.5386186
+  },
+  "bishopston": {
+    "name": "Bishopston",
+    "lat": 51.4783046,
+    "lon": -2.5954528
+  },
+  "bishopsworth": {
+    "name": "Bishopsworth",
+    "lat": 51.416804,
+    "lon": -2.6231954
+  },
+  "blaise-hamlet": {
+    "name": "Blaise Hamlet",
+    "lat": 51.5070966,
+    "lon": -2.6356699
+  },
+  "bower-ashton": {
+    "name": "Bower Ashton",
+    "lat": 51.4415821,
+    "lon": -2.6288378
+  },
+  "brandon-hill": {
+    "name": "Brandon Hill",
+    "lat": 51.454097,
+    "lon": -2.6071824
+  },
+  "brentry": {
+    "name": "Brentry",
+    "lat": 51.5115238,
+    "lon": -2.6051232
+  },
+  "brislington": {
+    "name": "Brislington",
+    "lat": 51.4377965,
+    "lon": -2.5445382
+  },
+  "broadmead": {
+    "name": "Broadmead",
+    "lat": 51.4577074,
+    "lon": -2.5891175
+  },
+  "broomhill": {
+    "name": "Broomhill",
+    "lat": 51.4417664,
+    "lon": -2.5382182
+  },
+  "chester-park": {
+    "name": "Chester Park",
+    "lat": 51.4637192,
+    "lon": -2.5470103
+  },
+  "clifton": {
+    "name": "Clifton",
+    "lat": 51.4615884,
+    "lon": -2.6202846
+  },
+  "coombe-dingle": {
+    "name": "Coombe Dingle",
+    "lat": 51.4921891,
+    "lon": -2.6400554
+  },
+  "cotham": {
+    "name": "Cotham",
+    "lat": 51.4649704,
+    "lon": -2.5986042
+  },
+  "crews-hole": {
+    "name": "Crew's Hole",
+    "lat": 51.4563099,
+    "lon": -2.5396003
+  },
+  "crofts-end": {
+    "name": "Crofts End",
+    "lat": 51.4657187,
+    "lon": -2.5430387
+  },
+  "easton": {
+    "name": "Easton",
+    "lat": 51.4647028,
+    "lon": -2.567684
+  },
+  "eastville": {
+    "name": "Eastville",
+    "lat": 51.4733052,
+    "lon": -2.5598573
+  },
+  "filwood-park": {
+    "name": "Filwood Park",
+    "lat": 51.4282412,
+    "lon": -2.5863751
+  },
+  "fishponds": {
+    "name": "Fishponds",
+    "lat": 51.4815797,
+    "lon": -2.528941
+  },
+  "golden-hill": {
+    "name": "Golden Hill",
+    "lat": 51.4844538,
+    "lon": -2.5999756
+  },
+  "greenbank": {
+    "name": "Greenbank",
+    "lat": 51.4680295,
+    "lon": -2.5574424
+  },
+  "hartcliffe": {
+    "name": "Hartcliffe",
+    "lat": 51.4067969,
+    "lon": -2.5988964
+  },
+  "headley-park": {
+    "name": "Headley Park",
+    "lat": 51.4196058,
+    "lon": -2.6084903
+  },
+  "henbury": {
+    "name": "Henbury",
+    "lat": 51.506908,
+    "lon": -2.6293945
+  },
+  "hengrove": {
+    "name": "Hengrove",
+    "lat": 51.4159106,
+    "lon": -2.57125
+  },
+  "henleaze": {
+    "name": "Henleaze",
+    "lat": 51.4845899,
+    "lon": -2.6112053
+  },
+  "hillfields": {
+    "name": "Hillfields",
+    "lat": 51.4738809,
+    "lon": -2.5168111
+  },
+  "horfield": {
+    "name": "Horfield",
+    "lat": 51.4918563,
+    "lon": -2.5800957
+  },
+  "hotwells": {
+    "name": "Hotwells",
+    "lat": 51.4505338,
+    "lon": -2.6216209
+  },
+  "kensington-park": {
+    "name": "Kensington Park",
+    "lat": 51.4653644,
+    "lon": -2.5704111
+  },
+  "kingsdown": {
+    "name": "Kingsdown",
+    "lat": 51.4625246,
+    "lon": -2.5954569
+  },
+  "knowle": {
+    "name": "Knowle",
+    "lat": 51.4285779,
+    "lon": -2.5779992
+  },
+  "knowle-west": {
+    "name": "Knowle West",
+    "lat": 51.4282412,
+    "lon": -2.5863751
+  },
+  "lawrence-hill": {
+    "name": "Lawrence Hill",
+    "lat": 51.45858,
+    "lon": -2.56417
+  },
+  "lawrence-weston": {
+    "name": "Lawrence Weston",
+    "lat": 51.5019311,
+    "lon": -2.6588353
+  },
+  "lockleaze": {
+    "name": "Lockleaze",
+    "lat": 51.4907008,
+    "lon": -2.565131
+  },
+  "lodge-hill": {
+    "name": "Lodge Hill",
+    "lat": 51.4698052,
+    "lon": -2.5175741
+  },
+  "mayfield-park": {
+    "name": "Mayfield Park",
+    "lat": 51.472681,
+    "lon": -2.5296512
+  },
+  "monks-park": {
+    "name": "Monks Park",
+    "lat": 51.5005435,
+    "lon": -2.5866834
+  },
+  "montpelier": {
+    "name": "Montpelier",
+    "lat": 51.4683479,
+    "lon": -2.5886798
+  },
+  "netham": {
+    "name": "Netham",
+    "lat": 51.4510697,
+    "lon": -2.5539106
+  },
+  "oldland-common": {
+    "name": "Oldland Common",
+    "lat": 51.4439411,
+    "lon": -2.4668807
+  },
+  "redcliffe": {
+    "name": "Redcliffe",
+    "lat": 51.4501596,
+    "lon": -2.5876011
+  },
+  "redfield": {
+    "name": "Redfield",
+    "lat": 51.4585386,
+    "lon": -2.5583954
+  },
+  "redland": {
+    "name": "Redland",
+    "lat": 51.4684317,
+    "lon": -2.5987661
+  },
+  "sea-mills": {
+    "name": "Sea Mills",
+    "lat": 51.4883852,
+    "lon": -2.6478562
+  },
+  "shirehampton": {
+    "name": "Shirehampton",
+    "lat": 51.4880902,
+    "lon": -2.6761284
+  },
+  "sneyd-park": {
+    "name": "Sneyd Park",
+    "lat": 51.4735504,
+    "lon": -2.6377642
+  },
+  "southmead": {
+    "name": "Southmead",
+    "lat": 51.5021683,
+    "lon": -2.596623
+  },
+  "southville": {
+    "name": "Southville",
+    "lat": 51.4433291,
+    "lon": -2.6011882
+  },
+  "speedwell": {
+    "name": "Speedwell",
+    "lat": 51.466553,
+    "lon": -2.5330503
+  },
+  "spike-island": {
+    "name": "Spike Island",
+    "lat": 51.4477569,
+    "lon": -2.6104809
+  },
+  "st-agnes": {
+    "name": "St Agnes",
+    "lat": 51.4650673,
+    "lon": -2.5790043
+  },
+  "st-andrews": {
+    "name": "St Andrews",
+    "lat": 51.5124477,
+    "lon": -2.6964411
+  },
+  "st-annes": {
+    "name": "St Anne's",
+    "lat": 51.4510753,
+    "lon": -2.5435207
+  },
+  "st-george": {
+    "name": "St George",
+    "lat": 51.4588942,
+    "lon": -2.534168
+  },
+  "st-pauls": {
+    "name": "St Paul's",
+    "lat": 51.4629155,
+    "lon": -2.5840206
+  },
+  "st-philips-marsh": {
+    "name": "St Philip's Marsh",
+    "lat": 51.4469267,
+    "lon": -2.5694717
+  },
+  "st-werburghs": {
+    "name": "St Werburghs",
+    "lat": 51.4749326,
+    "lon": -2.5748735
+  },
+  "stapleton": {
+    "name": "Stapleton",
+    "lat": 51.4813576,
+    "lon": -2.5554377
+  },
+  "stockwood": {
+    "name": "Stockwood",
+    "lat": 51.4139223,
+    "lon": -2.5417852
+  },
+  "stoke-bishop": {
+    "name": "Stoke Bishop",
+    "lat": 51.4804127,
+    "lon": -2.6356909
+  },
+  "stokes-croft": {
+    "name": "Stokes Croft",
+    "lat": 51.4621112,
+    "lon": -2.5902405
+  },
+  "temple-meads": {
+    "name": "Temple Meads",
+    "lat": 51.4490991,
+    "lon": -2.5804029
+  },
+  "totterdown": {
+    "name": "Totterdown",
+    "lat": 51.4409425,
+    "lon": -2.5756487
+  },
+  "two-mile-hill": {
+    "name": "Two Mile Hill",
+    "lat": 51.4631765,
+    "lon": -2.5136475
+  },
+  "upper-knowle": {
+    "name": "Upper Knowle",
+    "lat": 51.4371533,
+    "lon": -2.5668427
+  },
+  "victoria-park": {
+    "name": "Victoria Park",
+    "lat": 51.4407308,
+    "lon": -2.588139
+  },
+  "westbury-on-trym": {
+    "name": "Westbury-on-Trym",
+    "lat": 51.4936347,
+    "lon": -2.6179454
+  },
+  "westbury-park": {
+    "name": "Westbury Park",
+    "lat": 51.4768586,
+    "lon": -2.6157613
+  },
+  "whitchurch": {
+    "name": "Whitchurch",
+    "lat": 51.4150114,
+    "lon": -2.5809322
+  },
+  "whitehall": {
+    "name": "Whitehall",
+    "lat": 51.4633679,
+    "lon": -2.5522801
+  },
+  "windmill-hill": {
+    "name": "Windmill Hill",
+    "lat": 51.439745,
+    "lon": -2.5883143
+  },
+  "withywood": {
+    "name": "Withywood",
+    "lat": 51.4073177,
+    "lon": -2.6262419
+  }
+}

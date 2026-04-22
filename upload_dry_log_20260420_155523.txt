@@ -1,0 +1,32 @@
+2026-04-20 15:55:23,685 INFO Log file: /home/abc/PycharmProjects/DirectoryWebsite/upload_dry_log_20260420_155523.txt
+2026-04-20 15:55:24,732 INFO Loading CSV: baseline.csv
+2026-04-20 15:55:24,821 INFO   3,933 rows loaded
+2026-04-20 15:55:25,345 INFO Schema validation passed — all rows OK
+2026-04-20 15:55:25,346 INFO   3,933 rows passed validation
+2026-04-20 15:55:25,346 INFO Fetching existing keys from DB …
+2026-04-20 15:55:25,968 INFO   0 rows with osm_id, 20 rows with google_place_id
+2026-04-20 15:55:26,607 INFO Rows to INSERT: 3,930
+2026-04-20 15:55:26,607 INFO Rows to check for delta UPDATE: 3
+2026-04-20 15:55:26,608 INFO Inserting new rows …
+2026-04-20 15:55:26,664 INFO   [DRY RUN] Would insert batch 1: 500 rows
+2026-04-20 15:55:26,664 INFO   [DRY RUN] Would insert batch 2: 500 rows
+2026-04-20 15:55:26,664 INFO   [DRY RUN] Would insert batch 3: 500 rows
+2026-04-20 15:55:26,664 INFO   [DRY RUN] Would insert batch 4: 500 rows
+2026-04-20 15:55:26,664 INFO   [DRY RUN] Would insert batch 5: 500 rows
+2026-04-20 15:55:26,664 INFO   [DRY RUN] Would insert batch 6: 500 rows
+2026-04-20 15:55:26,664 INFO   [DRY RUN] Would insert batch 7: 500 rows
+2026-04-20 15:55:26,664 INFO   [DRY RUN] Would insert batch 8: 430 rows
+2026-04-20 15:55:26,664 INFO Fetching existing rows for delta comparison …
+2026-04-20 15:55:26,872 INFO   [DRY RUN] Would update id=a12bcb52-d908-4565-823a-96287ed57479: fields=['google_rating', 'google_review_count', 'status']
+2026-04-20 15:55:26,872 INFO   [DRY RUN] Would update id=fc9b73ec-5ca4-4fc3-bd2c-27465cf599e1: fields=['google_rating', 'google_review_count', 'status']
+2026-04-20 15:55:26,872 INFO   [DRY RUN] Would update id=c1a17c96-a106-4f68-9886-de446a72ed13: fields=['chain_flag', 'area_slug', 'city_slug', 'google_rating', 'google_review_count', 'status']
+2026-04-20 15:55:26,872 INFO 
+==================================================
+Upload complete [DRY RUN]
+  Inserted:          3,930
+  Delta updated:         1
+  Rating refreshed:      3
+  Skipped:               0
+  Rejected:              0
+  Errors:                0
+==================================================

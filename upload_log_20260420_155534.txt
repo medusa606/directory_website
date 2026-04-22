@@ -1,0 +1,32 @@
+2026-04-20 15:55:34,338 INFO Log file: /home/abc/PycharmProjects/DirectoryWebsite/upload_log_20260420_155534.txt
+2026-04-20 15:55:34,703 INFO Loading CSV: baseline.csv
+2026-04-20 15:55:34,782 INFO   3,933 rows loaded
+2026-04-20 15:55:35,265 INFO Schema validation passed — all rows OK
+2026-04-20 15:55:35,266 INFO   3,933 rows passed validation
+2026-04-20 15:55:35,266 INFO Fetching existing keys from DB …
+2026-04-20 15:55:35,431 INFO   0 rows with osm_id, 20 rows with google_place_id
+2026-04-20 15:55:36,057 INFO Rows to INSERT: 3,930
+2026-04-20 15:55:36,057 INFO Rows to check for delta UPDATE: 3
+2026-04-20 15:55:36,057 INFO Inserting new rows …
+2026-04-20 15:55:36,534 ERROR   INSERT batch error: {'message': 'duplicate key value violates unique constraint "idx_listing_slugs"', 'code': '23505', 'hint': None, 'details': 'Key (city_slug, area_slug, business_slug)=(bristol, city-centre, tesco-express) already exists.'}
+2026-04-20 15:55:36,843 ERROR   INSERT batch error: {'message': 'duplicate key value violates unique constraint "listings_google_place_id_key"', 'code': '23505', 'hint': None, 'details': 'Key (google_place_id)=(ChIJ-5KQ-3eOcUgRm0zP5WntCBE) already exists.'}
+2026-04-20 15:55:37,009 ERROR   INSERT batch error: {'message': 'duplicate key value violates unique constraint "idx_listing_slugs"', 'code': '23505', 'hint': None, 'details': 'Key (city_slug, area_slug, business_slug)=(bristol, fishponds, one-stop) already exists.'}
+2026-04-20 15:55:37,165 ERROR   INSERT batch error: {'message': 'duplicate key value violates unique constraint "idx_listing_slugs"', 'code': '23505', 'hint': None, 'details': 'Key (city_slug, area_slug, business_slug)=(bristol, clifton, eat-a-pitta) already exists.'}
+2026-04-20 15:55:37,318 ERROR   INSERT batch error: {'message': 'duplicate key value violates unique constraint "idx_listing_slugs"', 'code': '23505', 'hint': None, 'details': 'Key (city_slug, area_slug, business_slug)=(bristol, brandon-hill, 98-club-shisha-ktv) already exists.'}
+2026-04-20 15:55:37,460 ERROR   INSERT batch error: {'message': 'duplicate key value violates unique constraint "idx_listing_slugs"', 'code': '23505', 'hint': None, 'details': 'Key (city_slug, area_slug, business_slug)=(bristol, southville, charmans-joinery) already exists.'}
+2026-04-20 15:55:37,595 ERROR   INSERT batch error: {'message': 'duplicate key value violates unique constraint "idx_listing_slugs"', 'code': '23505', 'hint': None, 'details': 'Key (city_slug, area_slug, business_slug)=(bristol, hartcliffe, boots) already exists.'}
+2026-04-20 15:55:37,734 ERROR   INSERT batch error: {'message': 'duplicate key value violates unique constraint "idx_listing_slugs"', 'code': '23505', 'hint': None, 'details': 'Key (city_slug, area_slug, business_slug)=(bristol, city-centre, odeon) already exists.'}
+2026-04-20 15:55:37,734 INFO Fetching existing rows for delta comparison …
+2026-04-20 15:55:37,851 DEBUG   Updated id=a12bcb52-d908-4565-823a-96287ed57479: ['google_rating', 'google_review_count', 'status']
+2026-04-20 15:55:37,907 DEBUG   Updated id=fc9b73ec-5ca4-4fc3-bd2c-27465cf599e1: ['google_rating', 'google_review_count', 'status']
+2026-04-20 15:55:37,958 DEBUG   Updated id=c1a17c96-a106-4f68-9886-de446a72ed13: ['chain_flag', 'area_slug', 'city_slug', 'google_rating', 'google_review_count', 'status']
+2026-04-20 15:55:37,958 INFO 
+==================================================
+Upload complete
+  Inserted:              0
+  Delta updated:         1
+  Rating refreshed:      3
+  Skipped:               0
+  Rejected:              0
+  Errors:            3,930
+==================================================

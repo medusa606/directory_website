@@ -1,0 +1,3086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image Curator — Meridian Directory</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #f2f4f7; color: #222; }
+  header { background: #1a1a2e; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 1.1rem; font-weight: 600; flex: 1; }
+  .page-nav { display: flex; align-items: center; gap: 12px; }
+  .page-nav button { background: #fff2; border: 1px solid #fff3; color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+  .page-nav button:hover { background: #fff3; }
+  .page-nav button:disabled { opacity: 0.35; cursor: default; }
+  .page-label { font-size: 0.9rem; color: #ccd; min-width: 180px; text-align: center; }
+
+  .toolbar { background: #fff; border-bottom: 1px solid #e0e0e0; padding: 10px 24px; display: flex; align-items: center; gap: 12px; }
+  .toolbar button { padding: 7px 16px; border-radius: 7px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+  #btn-export { background: #1e8c45; color: #fff; }
+  #btn-export:hover { background: #166b34; }
+  #btn-clear-all { background: #e5e7eb; color: #555; }
+  #btn-clear-all:hover { background: #d1d5db; }
+  .saved-status { font-size: 0.8rem; color: #888; margin-left: auto; }
+
+  .listings-grid { padding: 20px 24px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* Listing card */
+  .listing-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
+  .listing-header { padding: 14px 18px 10px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .listing-info h2 { font-size: 1rem; font-weight: 700; margin-bottom: 2px; }
+  .listing-info .address { font-size: 0.8rem; color: #666; }
+  .listing-info a { font-size: 0.78rem; color: #2563eb; text-decoration: none; }
+  .listing-info a:hover { text-decoration: underline; }
+  .listing-status { font-size: 0.75rem; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
+  .status-both { background: #d1fae5; color: #065f46; }
+  .status-partial { background: #fef3c7; color: #92400e; }
+  .status-none { background: #fee2e2; color: #991b1b; }
+
+  .images-area { padding: 12px 18px 16px; }
+  .no-images { font-size: 0.85rem; color: #999; padding: 8px 0; }
+
+  .img-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+  .img-card { position: relative; border: 3px solid transparent; border-radius: 10px; overflow: hidden; cursor: pointer; width: 148px; flex-shrink: 0; background: #f8f9fa; transition: border-color 0.15s, box-shadow 0.15s; }
+  .img-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  .img-card.hero  { border-color: #2563eb; box-shadow: 0 0 0 2px #93c5fd; }
+  .img-card.logo  { border-color: #16a34a; box-shadow: 0 0 0 2px #86efac; }
+  .img-card.hero.logo { border-color: #7c3aed; box-shadow: 0 0 0 2px #c4b5fd; }
+  .img-card img { width: 148px; height: 110px; object-fit: cover; display: block; background: #e5e7eb; }
+  .img-card .img-meta { padding: 5px 6px; font-size: 0.7rem; }
+  .source-badge { display: inline-block; background: #e0e7ff; color: #3730a3; padding: 1px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600; margin-bottom: 3px; }
+  .img-alt { color: #666; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 136px; }
+
+  .btn-row { display: flex; gap: 6px; padding: 4px 6px 6px; }
+  .btn-tag { flex: 1; font-size: 0.7rem; font-weight: 700; border: none; border-radius: 5px; padding: 4px 2px; cursor: pointer; transition: background 0.1s; }
+  .btn-hero { background: #dbeafe; color: #1d4ed8; }
+  .btn-hero.active { background: #2563eb; color: #fff; }
+  .btn-hero:hover:not(.active) { background: #bfdbfe; }
+  .btn-logo { background: #dcfce7; color: #15803d; }
+  .btn-logo.active { background: #16a34a; color: #fff; }
+  .btn-logo:hover:not(.active) { background: #bbf7d0; }
+
+  footer { text-align: center; padding: 24px; font-size: 0.8rem; color: #999; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🖼 Image Curator — Meridian Directory</h1>
+  <div class="page-nav">
+    <button id="btn-prev" onclick="changePage(-1)" disabled>← Prev</button>
+    <span class="page-label" id="page-label">Page 1</span>
+    <button id="btn-next" onclick="changePage(1)">Next →</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <button id="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+  <button id="btn-clear-all" onclick="if(confirm('Clear all selections on this page?')) clearPage()">Clear Page</button>
+  <span class="saved-status" id="save-status">Selections auto-saved in browser</span>
+</div>
+
+<div class="listings-grid" id="listings-grid"></div>
+
+<footer>
+  Use the Hero 🔵 and Logo 🟢 buttons to select images. Selections are saved in localStorage. Click Export CSV when done.
+</footer>
+
+<script>
+const DATA = [
+  {
+    "business_slug": "yew-tree-farm-bristol",
+    "name": "Yew Tree Farm Bristol",
+    "address": "Bridgwater Road, Bristol, BS13 8AJ",
+    "website": "http://yewtreefarmbristol.com/",
+    "candidates": [],
+    "guess_hero": "http://static1.squarespace.com/static/61dc4f536c6b0048e8e8caeb/t/61e447ad02b64d76434739bc/1642350509550/imageedit_4_8060087597.png?format=1500w",
+    "guess_logo": "https://assets.squarespace.com/universal/default-favicon.ico",
+    "selected_hero": "http://static1.squarespace.com/static/61dc4f536c6b0048e8e8caeb/t/61e447ad02b64d76434739bc/1642350509550/imageedit_4_8060087597.png?format=1500w",
+    "selected_logo": "https://assets.squarespace.com/universal/default-favicon.ico"
+  },
+  {
+    "business_slug": "the-bridge-cafe",
+    "name": "The Bridge Cafe",
+    "address": "5 Binford Pl, Bridgwater TA6 3NJ, UK",
+    "website": "http://www.theavongorge.com/the-bridge-cafe/welcome-1",
+    "candidates": [],
+    "guess_hero": "",
+    "guess_logo": "",
+    "selected_hero": "",
+    "selected_logo": ""
+  },
+  {
+    "business_slug": "rajgate-tandori",
+    "name": "Rajgate Tandori",
+    "address": "5 Shirehampton Road, Bristol, BS9 2DP",
+    "website": "https://www.rajgatetandoori-bristol.co.uk",
+    "candidates": [],
+    "guess_hero": "",
+    "guess_logo": "",
+    "selected_hero": "",
+    "selected_logo": ""
+  },
+  {
+    "business_slug": "royalty",
+    "name": "Royalty",
+    "address": "1 High St, Winterbourne, Bristol BS36 1JN, UK",
+    "website": "https://www.royalrajrestaurant.co.uk/",
+    "candidates": [],
+    "guess_hero": "https://www.royalrajrestaurant.co.uk/img/slide-1.jpg",
+    "guess_logo": "https://www.royalrajrestaurant.co.uk/img/header-1.png",
+    "selected_hero": "https://www.royalrajrestaurant.co.uk/img/slide-1.jpg",
+    "selected_logo": "https://www.royalrajrestaurant.co.uk/img/header-1.png"
+  },
+  {
+    "business_slug": "palermo-pizzeria",
+    "name": "Palermo pizzeria",
+    "address": "38 Belland Dr, Bristol BS14 0EW, UK",
+    "website": "http://www.palermopizzeria.co.uk/",
+    "candidates": [],
+    "guess_hero": "https://palermopizzeria.co.uk/sitelogo/sitelogo.png",
+    "guess_logo": "http://www.palermopizzeria.co.uk/sitelogo/sitelogo.png",
+    "selected_hero": "https://palermopizzeria.co.uk/sitelogo/sitelogo.png",
+    "selected_logo": "http://www.palermopizzeria.co.uk/sitelogo/sitelogo.png"
+  },
+  {
+    "business_slug": "five-acre-farm-shop",
+    "name": "Five Acre Farm Shop",
+    "address": "Five Acre Farm, Backwell, West Town, Bristol BS48 3BQ, UK",
+    "website": "https://fiveacre.farm/",
+    "candidates": [],
+    "guess_hero": "https://fiveacre.farm/wp-content/uploads/2023/10/84-DSCF7036-1-scaled-e1697793135209.jpg",
+    "guess_logo": "https://fiveacre.farm/wp-content/uploads/2020/11/logo_icon.png",
+    "selected_hero": "https://fiveacre.farm/wp-content/uploads/2023/10/84-DSCF7036-1-scaled-e1697793135209.jpg",
+    "selected_logo": "https://fiveacre.farm/wp-content/uploads/2020/11/logo_icon.png"
+  },
+  {
+    "business_slug": "tobacco-factory-market",
+    "name": "Tobacco Factory Market",
+    "address": "The Tobacco Factory, Raleigh Rd, Southville, Bristol BS3 1TF, UK",
+    "website": "https://tobaccofactory.com/whats-on/sunday-market/",
+    "candidates": [],
+    "guess_hero": "https://tobaccofactory.com/wp-content/uploads/2019/03/tf_web_header.jpg",
+    "guess_logo": "https://tobaccofactory.com/wp-content/themes/tobacco-factory/img/tf-logo.png",
+    "selected_hero": "https://tobaccofactory.com/wp-content/uploads/2019/03/tf_web_header.jpg",
+    "selected_logo": "https://tobaccofactory.com/wp-content/themes/tobacco-factory/img/tf-logo.png"
+  },
+  {
+    "business_slug": "heron-foods",
+    "name": "Heron Foods",
+    "address": "102-106 East Street, Bristol, BS3 4EY",
+    "website": "https://heronfoods.com/store/bedminster/",
+    "candidates": [],
+    "guess_hero": "https://heronfoods.com/wp-content/uploads/2026/02/C4_Website_Desktop_Banner-scaled-e1774362895322.jpg",
+    "guess_logo": "https://heronfoods.com/wp-content/uploads/2021/10/Heron_TQLP-1.svg",
+    "selected_hero": "https://heronfoods.com/wp-content/uploads/2026/02/C4_Website_Desktop_Banner-scaled-e1774362895322.jpg",
+    "selected_logo": "https://heronfoods.com/wp-content/uploads/2021/10/Heron_TQLP-1.svg"
+  },
+  {
+    "business_slug": "southville-deli",
+    "name": "Southville Deli",
+    "address": "259-261 Church Rd, Redfield, Bristol BS5 9HT, UK",
+    "website": "https://www.southvilledeli.com/",
+    "candidates": [],
+    "guess_hero": "https://www.southvilledeli.com/fileadmin/southvilledeli/gfx/deli_banner.png",
+    "guess_logo": "https://www.southvilledeli.com/fileadmin/southvilledeli/gfx/favicon.ico",
+    "selected_hero": "https://www.southvilledeli.com/fileadmin/southvilledeli/gfx/deli_banner.png",
+    "selected_logo": "https://www.southvilledeli.com/fileadmin/southvilledeli/gfx/favicon.ico"
+  },
+  {
+    "business_slug": "spitfire",
+    "name": "Spitfire",
+    "address": "1 Hannover Quay, Bristol, BS1 5JE",
+    "website": "http://www.spitfirebarbecue.com/",
+    "candidates": [],
+    "guess_hero": "https://spitfirebarbecue.com/img/darkLogo.jpg",
+    "guess_logo": "https://www.spitfirebarbecue.com/img/logoInternal.png",
+    "selected_hero": "https://spitfirebarbecue.com/img/darkLogo.jpg",
+    "selected_logo": "https://www.spitfirebarbecue.com/img/logoInternal.png"
+  },
+  {
+    "business_slug": "ragu",
+    "name": "Ragu",
+    "address": "Ragunan, Pasar Minggu, South Jakarta City, Jakarta, Indonesia",
+    "website": "https://www.ragurestaurant.com",
+    "candidates": [],
+    "guess_hero": "https://static.wixstatic.com/media/d1856e_fbb6d1c24977477b835c521c1da5bdeb~mv2.jpg/v1/fill/w_2500,h_2381,al_c/d1856e_fbb6d1c24977477b835c521c1da5bdeb~mv2.jpg",
+    "guess_logo": "https://static.wixstatic.com/media/d1856e_0476890f38c14ef7b4f84ed3c084c2cb~mv2.png/v1/fill/w_180,h_180,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/logo-bristollive-social-sharing.png",
+    "selected_hero": "https://static.wixstatic.com/media/d1856e_fbb6d1c24977477b835c521c1da5bdeb~mv2.jpg/v1/fill/w_2500,h_2381,al_c/d1856e_fbb6d1c24977477b835c521c1da5bdeb~mv2.jpg",
+    "selected_logo": "https://static.wixstatic.com/media/d1856e_0476890f38c14ef7b4f84ed3c084c2cb~mv2.png/v1/fill/w_180,h_180,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/logo-bristollive-social-sharing.png"
+  },
+  {
+    "business_slug": "newquay-road-convenience-store",
+    "name": "Newquay road convenience store",
+    "address": "98 Newquay Rd, Bristol BS4 1DS, UK",
+    "website": "https://www.premier-stores.co.uk/?utm_source=gmb&utm_medium=yext",
+    "candidates": [],
+    "guess_hero": "https://www.premier-stores.co.uk/sites/default/files/styles/header_image_750_x_600_/public/slide/image/Premier-Singhs-Amazing-Value-Locally-Desktop-Banner.jpg?itok=bkUf47TC",
+    "guess_logo": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/premierLogo.png",
+    "selected_hero": "https://www.premier-stores.co.uk/sites/default/files/styles/header_image_750_x_600_/public/slide/image/Premier-Singhs-Amazing-Value-Locally-Desktop-Banner.jpg?itok=bkUf47TC",
+    "selected_logo": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/premierLogo.png"
+  },
+  {
+    "business_slug": "baker-bespoke",
+    "name": "Baker Bespoke",
+    "address": "67-77 Whitehouse Ln, Bedminster, Bristol BS3 4DN, UK",
+    "website": "http://www.baker-bespoke.com/",
+    "candidates": [],
+    "guess_hero": "http://static1.squarespace.com/static/67ea69525ea62b7cff040b77/t/67ea85c978615050537ebccf/1743422921637/Baker+Bespoke+Logo.png?format=1500w",
+    "guess_logo": "http://images.squarespace-cdn.com/content/v1/67ea69525ea62b7cff040b77/b65f820e-23d7-495c-8238-0dc37cc36d17/Baker+Bespoke+Logo.png?format=1500w",
+    "selected_hero": "http://static1.squarespace.com/static/67ea69525ea62b7cff040b77/t/67ea85c978615050537ebccf/1743422921637/Baker+Bespoke+Logo.png?format=1500w",
+    "selected_logo": "http://images.squarespace-cdn.com/content/v1/67ea69525ea62b7cff040b77/b65f820e-23d7-495c-8238-0dc37cc36d17/Baker+Bespoke+Logo.png?format=1500w"
+  },
+  {
+    "business_slug": "the-park-deli",
+    "name": "The Park Deli",
+    "address": "10 Sandy Park Rd, Brislington, Bristol BS4 3PE, UK",
+    "website": "http://deliat.co.uk/",
+    "candidates": [],
+    "guess_hero": "https://deliat.co.uk/wp-content/uploads/2024/02/cropped-Untitled-design.png",
+    "guess_logo": "https://deliat.co.uk/wp-content/uploads/2024/02/cropped-Untitled-design-180x180.png",
+    "selected_hero": "https://deliat.co.uk/wp-content/uploads/2024/02/cropped-Untitled-design.png",
+    "selected_logo": "https://deliat.co.uk/wp-content/uploads/2024/02/cropped-Untitled-design-180x180.png"
+  },
+  {
+    "business_slug": "the-kiln",
+    "name": "The Kiln",
+    "address": "Redcliffe Way, Redcliffe, Bristol BS1 6NJ, UK",
+    "website": "https://www.hilton.com/en/hotels/brsrwdi-doubletree-bristol-city-centre/dining/",
+    "candidates": [],
+    "guess_hero": "",
+    "guess_logo": "",
+    "selected_hero": "",
+    "selected_logo": ""
+  },
+  {
+    "business_slug": "chi-foof",
+    "name": "Chi foof",
+    "address": "301 Gloucester Rd, Bishopston, Bristol BS7 8PE, UK",
+    "website": "https://chirestaurants.co.uk/",
+    "candidates": [],
+    "guess_hero": "https://static.wixstatic.com/media/af664e_77f4cd1c829b44a7b300b7ee2e4e1f4df000.jpg/v1/fill/w_147,h_83,al_c,q_80,usm_0.66_1.00_0.01,blur_2,enc_avif,quality_auto/af664e_77f4cd1c829b44a7b300b7ee2e4e1f4df000.jpg",
+    "guess_logo": "https://static.wixstatic.com/media/af664e_8fe167fbd75f4cd59de923b726249c1c~mv2.png/v1/fill/w_122,h_60,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/chi%20logo%20web.png",
+    "selected_hero": "https://static.wixstatic.com/media/af664e_77f4cd1c829b44a7b300b7ee2e4e1f4df000.jpg/v1/fill/w_147,h_83,al_c,q_80,usm_0.66_1.00_0.01,blur_2,enc_avif,quality_auto/af664e_77f4cd1c829b44a7b300b7ee2e4e1f4df000.jpg",
+    "selected_logo": "https://static.wixstatic.com/media/af664e_8fe167fbd75f4cd59de923b726249c1c~mv2.png/v1/fill/w_122,h_60,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/chi%20logo%20web.png"
+  },
+  {
+    "business_slug": "blue-ginger",
+    "name": "Blue Ginger",
+    "address": "36-38 Gilda Parade, Bristol, BS14 9HY",
+    "website": "https://bluegingerbristol.com/",
+    "candidates": [],
+    "guess_hero": "https://bluegingerbristol.com/blueginger/logo2.png",
+    "guess_logo": "https://bluegingerbristol.com/blueginger/57.png",
+    "selected_hero": "https://bluegingerbristol.com/blueginger/logo2.png",
+    "selected_logo": "https://bluegingerbristol.com/blueginger/57.png"
+  },
+  {
+    "business_slug": "paprika",
+    "name": "Paprika",
+    "address": "16-18 Gilda Parade, Bristol, BS14 9HY",
+    "website": "http://www.paprikabristol.uk/",
+    "candidates": [
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/cropped-icon-180x180.webp",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/Paprika-logo-white-orange-2-300x88.webp",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Paprika Restaurant Bristol logo"
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/Paprika-logo-white-orange-stroke2.webp",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Paprika logo"
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/elementor/thumbs/Paprika-logo-white-orange-2-rhcol5abxmeuc8sgxsrrq487tzswa2ikk36f32taqm.webp",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Paprika Restaurant Bristol logo"
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/cropped-icon-32x32.webp",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/cropped-icon-192x192.webp",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/Paprika-Indian-Restaurant-seating.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "Paprika Indian Restaurant seating"
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/Indian-food-at-Paprika-Restaurant-Bristol-1.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/Indian-food-at-Paprika-Restaurant-Bristol.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "Indian food at Paprika Restaurant Bristol"
+      },
+      {
+        "url": "https://paprikabristol.uk/wp-content/uploads/2026/01/Indian-food-at-Paprika-Restaurant-Bristol-2.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://paprikabristol.uk/wp-content/uploads/2026/01/Paprika-Indian-Restaurant-seating.webp",
+    "guess_logo": "https://paprikabristol.uk/wp-content/uploads/2026/01/Paprika-logo-white-orange-2-300x88.webp",
+    "selected_hero": "https://paprikabristol.uk/wp-content/uploads/2026/01/Paprika-Indian-Restaurant-seating.webp",
+    "selected_logo": "https://paprikabristol.uk/wp-content/uploads/2026/01/Paprika-logo-white-orange-2-300x88.webp"
+  },
+  {
+    "business_slug": "cloisters",
+    "name": "Cloisters",
+    "address": "7 Old Palace Yd, London SW1P 3JY, UK",
+    "website": "https://www.westminster-abbey.org/history/explore-our-history/the-cloisters",
+    "candidates": [
+      {
+        "url": "https://www.westminster-abbey.org/media/hwobuvvu/east-cloister.jpg?width=1024&height=512&v=1da46febe0b4ca0",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/apple-touch-icon-57x57.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/apple-touch-icon-72x72.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/apple-touch-icon-76x76.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/apple-touch-icon-114x114.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/apple-touch-icon-120x120.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/apple-touch-icon-144x144.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/apple-touch-icon-152x152.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/apple-touch-icon-180x180.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/media/w2iftgm0/westminster-abbey.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Westminster Abbey"
+      },
+      {
+        "url": "https://www.westminster-abbey.org/images/myselfandco-xd-logo.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "M&C Experience Design"
+      },
+      {
+        "url": "https://www.westminster-abbey.org/images/pixeltocode-logo.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Website development in Umbraco"
+      },
+      {
+        "url": "https://www.westminster-abbey.org/images/x_icon_red_30x30.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Twitter/X logo"
+      },
+      {
+        "url": "https://www.westminster-abbey.org/favicon-32x32.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/favicon-16x16.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.westminster-abbey.org/images/Tripadvisor_Travellers_Choice_2025.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Tripadvisor Travellers Choice Award 2025"
+      }
+    ],
+    "guess_hero": "https://www.westminster-abbey.org/media/hwobuvvu/east-cloister.jpg?width=1024&height=512&v=1da46febe0b4ca0",
+    "guess_logo": "https://www.westminster-abbey.org/media/w2iftgm0/westminster-abbey.png",
+    "selected_hero": "https://www.westminster-abbey.org/media/hwobuvvu/east-cloister.jpg?width=1024&height=512&v=1da46febe0b4ca0",
+    "selected_logo": "https://www.westminster-abbey.org/media/w2iftgm0/westminster-abbey.png"
+  },
+  {
+    "business_slug": "beats-street-food-party-bristol-eats",
+    "name": "Beats Street food party (Bristol eats)",
+    "address": "Central Road, Paintworks, Bath Rd, Arno's Vale, Bristol BS4 3EH, UK",
+    "website": "http://www.bristoleats.co.uk/",
+    "candidates": [
+      {
+        "url": "https://bristoleats.co.uk/wp-content/uploads/Prairie-Girl-Rubbish-as-LS.jpg",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://bristoleats.co.uk/wp-content/uploads/logonewweb-1.png",
+        "source": "schema.org/logo",
+        "priority": 4,
+        "alt": ""
+      },
+      {
+        "url": "https://secure.gravatar.com/avatar/24412b91a44ff20ba346e1132f5211220f1a15657b787cd88608c07c36bed23a?s=96&amp;d=mm&amp;r=g",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://bristoleats.co.uk/wp-content/uploads/new-web_logo-1.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": ""
+      },
+      {
+        "url": "https://bristoleats.co.uk/wp-content/uploads/University-of-the-West-of-England-Bristol-logo.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "University of the West of England Bristol logo"
+      },
+      {
+        "url": "http://bristoleats.co.uk/wp-content/uploads/stoked-bristol-eats-header.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "stoked bristol eats header"
+      },
+      {
+        "url": "https://bristoleats.co.uk/wp-content/uploads/Screenshot-2023-01-05-at-15.33.01-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Screenshot 2023 01 05 at 15.33.01 1"
+      }
+    ],
+    "guess_hero": "https://bristoleats.co.uk/wp-content/uploads/Prairie-Girl-Rubbish-as-LS.jpg",
+    "guess_logo": "https://bristoleats.co.uk/wp-content/uploads/logonewweb-1.png",
+    "selected_hero": "https://bristoleats.co.uk/wp-content/uploads/Prairie-Girl-Rubbish-as-LS.jpg",
+    "selected_logo": "https://bristoleats.co.uk/wp-content/uploads/logonewweb-1.png"
+  },
+  {
+    "business_slug": "bellevue-convenience-store",
+    "name": "Bellevue Convenience Store",
+    "address": "26 Bellevue Park, Bristol, BS4 4JR",
+    "website": "https://www.premier-stores.co.uk/our-stores/bellevue-stores",
+    "candidates": [
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-57x57.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-60x60.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-72x72.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-76x76.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-114x114.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-120x120.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-144x144.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-152x152.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/apple-icon-180x180.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/premierLogo.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Premier"
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/facebook.gif",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Facebook Logo"
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/twitter-x-logo-black.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Twitter Logo"
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/favicon.ico",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/android-icon-192x192.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/favicon-32x32.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/favicon-96x96.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/favicons/favicon-16x16.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/icons/store/.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Beers Wines & Spirits"
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/sites/default/files/styles/offer_thumbnail_quarter/public/NP3-26-budweiser-mccoys-nuts-salt--vinegar-amstel-kopparberg-mixed-fruit-mcguigan-shiraz.png?itok=kvuzUhxH",
+        "source": "img",
+        "priority": 9,
+        "alt": "Budweiser, McCoys Nuts Salt & Vinegar, Amstel, Kopparberg Mixed Fruit, McGuigan Shiraz - Buy Any Budweiser, Amstel, Kopparberg Or McGuigan And Get 2 FREE Packs of KP Nuts at Premier"
+      },
+      {
+        "url": "https://www.premier-stores.co.uk/sites/default/files/styles/offer_thumbnail_quarter/public/NP3-26-carlsberg-brewdog-cold-beer-coors.png?itok=RXqbfmDH",
+        "source": "img",
+        "priority": 9,
+        "alt": "Carlsberg, Brewdog Cold Beer, Coors - Now Only £4 at Premier"
+      }
+    ],
+    "guess_hero": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/icons/store/.jpg",
+    "guess_logo": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/premierLogo.png",
+    "selected_hero": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/icons/store/.jpg",
+    "selected_logo": "https://www.premier-stores.co.uk/themes/custom/premierconsumer/images/ui/premierLogo.png"
+  },
+  {
+    "business_slug": "loro-di-napoli-pizzeria-trattoria",
+    "name": "L'oro di Napoli - Pizzeria & Trattoria",
+    "address": "3 Birchwood Road, BS4 4QH",
+    "website": "https://web.dojo.app/create_booking/vendor/i8-H3yAC_ygdU92cxs4JrPKV-AIyK5kJR4AVDpaOYcg_restaurant?fbclid=PAZXh0bgNhZW0CMTEAAaenxKcX8gf0sgQX0nWBP7zndRu3-qx3GHeltAbW8d92V6RHCU2_aYPTe5VnNw_aem_a3YM77q86faquLxYNLMZJQ",
+    "candidates": [
+      {
+        "url": "https://web.dojo.app/apple-touch-icon.png?v=2",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://web.dojo.app/favicon-32x32.png?v=2",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://web.dojo.app/favicon-16x16.png?v=2",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://web.dojo.app/safari-pinned-tab.svg?v=2",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://web.dojo.app/favicon.ico?v=2",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "",
+    "guess_logo": "https://web.dojo.app/apple-touch-icon.png?v=2",
+    "selected_hero": "",
+    "selected_logo": "https://web.dojo.app/apple-touch-icon.png?v=2"
+  },
+  {
+    "business_slug": "no-4",
+    "name": "No. 4",
+    "address": "4 Rodney Place, Bristol, BS8 4HY",
+    "website": "http://www.numberfourrestaurant.co.uk/",
+    "candidates": [
+      {
+        "url": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2024/04/Evoke-Pictures_No-4-Preview__014.jpg",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2022/03/page6image2480848.png",
+        "source": "schema.org/logo",
+        "priority": 4,
+        "alt": ""
+      },
+      {
+        "url": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2022/03/page6image2480848-1-300x300.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2022/03/page6image2480848-1-e1686829705805-100x100.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2025/08/DSC_0159-1024x691.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2025/01/Evoke-Pictures_No-4-Clifton__221-copy.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Elegant dessert plate featuring caramel panna cotta, banana, chocolate sponge, and chocolate tuile at No.4 Clifton Village, perfect for Valentine's Day Tasting Menus in Bristol. Experience fine dining in a romantic setting."
+      },
+      {
+        "url": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2025/04/DSC_0858-e1748524402533-1024x852.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.no4cliftonvillage.co.uk/wp-content/plugins/instagram-feed/img/placeholder.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "No.4 Clifton Village invites you to our Wedding Open Day ✨\n\n📅: Sunday, 10th May\n\nJoin us for an exclusive chance to see our venue beautifully styled for a wedding day. Meet our Events Manager, enjoy complimentary bubbles, and discover if we’re the perfect fit for your special day.\n\nSimply RSVP - link in bio 💌\n\n📷: @irenebonephotography"
+      }
+    ],
+    "guess_hero": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2024/04/Evoke-Pictures_No-4-Preview__014.jpg",
+    "guess_logo": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2022/03/page6image2480848.png",
+    "selected_hero": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2024/04/Evoke-Pictures_No-4-Preview__014.jpg",
+    "selected_logo": "https://www.no4cliftonvillage.co.uk/wp-content/uploads/2022/03/page6image2480848.png"
+  },
+  {
+    "business_slug": "botanica",
+    "name": "Botanica",
+    "address": "Victoria Square Hotel Clifton Road",
+    "website": "http://www.victoriasquarehotel.co.uk/",
+    "candidates": [
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-2gsu5y84l55liuxe3pueuvslp/main-page-1.jpg",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wiico-ahh7m0gzojq57od9b5g93i54g/favicon.ico",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "http://www.victoriasquarehotel.co.uk/integration/tc-theme/public/svg/svg-icons.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Website's SVG icons"
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wisvg-6r7kcxslrbu35get0xtyhkumj/file.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-5aocf2wt0jbnj9th8yrhiyqcp/img-0771.jpg?width=1920",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-1d2x7qgz6hqtmcdpxtkg6ef0q/single-room-main_standard.jpg?crop=89%2C0%2C1733%2C1300",
+        "source": "img",
+        "priority": 9,
+        "alt": "Economy Single Room at Victoria Square Hotel in Bristol"
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-dfaqgfbgsaph6kh4lok55z5bp/img-0683_standard.jpg?crop=111%2C0%2C1779%2C1334",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-c72dztz243o60q2koo9a9mggm/standard-double-main_standard.jpg?crop=115%2C0%2C1691%2C1268",
+        "source": "img",
+        "priority": 9,
+        "alt": "Standard Double Room at Victoria Square Hotel in Bristol"
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-2v1n42jocc98j60ftqlobldx/standard-twin-main_standard.jpg?crop=116%2C0%2C1688%2C1266",
+        "source": "img",
+        "priority": 9,
+        "alt": "Standard Twin Room at Victoria Square Hotel in Bristol"
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-caw06zuaw6e0zlsckwqa0rapm/1_standard.jpg?crop=0%2C0%2C2000%2C1500",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-2bjgdxdn11s8ylryynghunxqh/family-room-main_standard.jpg?crop=107%2C0%2C1707%2C1280",
+        "source": "img",
+        "priority": 9,
+        "alt": "Family Room at Victoria Square Hotel in Bristol"
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wisvg-89d1lgoyf37262y4i6cwpilbi/file.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wisvg-cvpsmvjc6c58t1bvtt4np99ff/file.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://image-tc.galaxy.tf/wijpeg-b3cb92r9stlilo61zvbow33e6/img-0451.jpg?width=1920",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://image-tc.galaxy.tf/wijpeg-2gsu5y84l55liuxe3pueuvslp/main-page-1.jpg",
+    "guess_logo": "https://image-tc.galaxy.tf/wiico-ahh7m0gzojq57od9b5g93i54g/favicon.ico",
+    "selected_hero": "https://image-tc.galaxy.tf/wijpeg-2gsu5y84l55liuxe3pueuvslp/main-page-1.jpg",
+    "selected_logo": "https://image-tc.galaxy.tf/wiico-ahh7m0gzojq57od9b5g93i54g/favicon.ico"
+  },
+  {
+    "business_slug": "caffe-clifton",
+    "name": "Caffe Clifton",
+    "address": "Victoria Square, Clifton, Bristol BS8 4EW, UK",
+    "website": "http://cantdancecoffee.co.uk/",
+    "candidates": [
+      {
+        "url": "http://static1.squarespace.com/static/5fcf7ca4ac9b9f728cf9534d/t/62ce7c81ece5fe0a247ac75b/1657699457862/80x80+logo+white.png?format=1500w",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "http://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/ce1f81ec-ae19-4469-84c3-ca694cb1d8bc/80x80+logo+white.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "http://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/ce1f81ec-ae19-4469-84c3-ca694cb1d8bc/80x80+logo+white.png?format=1500w",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Can&#39;t Dance Coffee"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/b9e8dc38-3b4b-4b92-a895-2af321d20577/favicon.ico?format=100w",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "http://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/b8eff25d-1849-49d2-8203-1764e0b86576/Little+Man.png?format=1500w",
+        "source": "img",
+        "priority": 9,
+        "alt": "Can&#39;t Dance Coffee"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/692df9da-cfbc-4918-ba98-cf130743d020/Site+header.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/1705139539788-KAC47V4KLECEKEG7TMDU/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "💫 We don&rsquo;t usually do things like this but January is HARD (how is it not even half way through?!) and we want to show a bit of love to the students as they come back into Clifton! ☕️ \n\n💖 Show a valid student ID or student email address and w"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/1704806341215-BAAD3F44HRRI3YLRYPO5/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Watching the world go by #SlowJanuary"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/1704722487897-E4M5OBFYEOLU998WYL56/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "HAPPY NEW YEAR! 💥 It&rsquo;s cold! But it&rsquo;s not raining!!!! Perfect coffee weather imho. \n.\nFind us weekdays 7.30-4 and weekends 9-4! 🧊 \n.\n☕️"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/1703422299655-RAF366E00MHUEODMH24B/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "That&rsquo;s a wrap (until Tuesday 😂) Merry Christmas all!\n.\nOpen Boxing Day 10am for your coffee and cake needs. \n.\nThank you to our customers for your ongoing support of our little box this year! 💜 and thank you to the amazing Can&rsquo;t Dance t"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/1702027258102-Z088F31JSB8ETP5YMMY2/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "✨ CLIFTON CHRISTMAS OPENING HOURS! ✨ \n.\nWe&rsquo;re open for your work party hangovers / escaping family Christmas time (disguised as a cheeky dog walk) every day for you EXCEPT Xmas Day and New Year&rsquo;s Day. \n.\nWe usually open NYD but this year "
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/1701899701152-TPPG71W5JV7U6VCYHP2T/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/1701351652285-I9DJ6ETCMG2URO2L8TBQ/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "❄️ It&rsquo;s freezing cold so come and warm up with a hot choccy! The winter months can be quieter for us so please do come and say hello! ❄️"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/1701277534850-OHCQE8Q64RMHU1CSQCKQ/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Looking back through old autumnal snaps. Such amazing colours from nature! We love our little corner of Clifton 🧡 thank you each and every one of you who supports us all through the year!"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/ff296275-b65c-4221-96ae-e4707b15b65d/food-hygiene-Rating+5_a_preview.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "http://static1.squarespace.com/static/5fcf7ca4ac9b9f728cf9534d/t/62ce7c81ece5fe0a247ac75b/1657699457862/80x80+logo+white.png?format=1500w",
+    "guess_logo": "http://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/ce1f81ec-ae19-4469-84c3-ca694cb1d8bc/80x80+logo+white.png?format=1500w",
+    "selected_hero": "http://static1.squarespace.com/static/5fcf7ca4ac9b9f728cf9534d/t/62ce7c81ece5fe0a247ac75b/1657699457862/80x80+logo+white.png?format=1500w",
+    "selected_logo": "http://images.squarespace-cdn.com/content/v1/5fcf7ca4ac9b9f728cf9534d/ce1f81ec-ae19-4469-84c3-ca694cb1d8bc/80x80+logo+white.png?format=1500w"
+  },
+  {
+    "business_slug": "racks",
+    "name": "Racks",
+    "address": "Clifton Hotel Saint Pauls Road, Bristol, BS8 1LX",
+    "website": "http://www.racks-bristol.co.uk/",
+    "candidates": [
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2022/03/website-racks-dark-blue-png-1.png",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2024/04/Evoke-Pictures_Racks-Summer-Party__332.jpg",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2022/03/favicon.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2026/03/sunnywine.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "sunnywine"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2023/02/racks2-1-e1772791377269.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "racks2"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2026/02/2.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "burger"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2026/02/3.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "3"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2025/05/table-e1761580445591.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "table"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2026/03/shots.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "shots"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2026/02/1.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "burger"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2026/01/WEARITAGAIN-e1772791429689.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "WEARITAGAIN"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2023/02/racks5-1-e1772791461190.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "racks5"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2025/02/Evoke-Pictures_Racks__182-e1772791508614.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A bartender at Racks Bar & Kitchen in Bristol perfecting a classic Bloody Mary cocktail. Enjoy this signature drink for just £5 every Sunday, paired with a hearty Sunday roast. The best spot in Clifton for Sunday drinks and a relaxed weekend lunch."
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2025/12/guinnessfont.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "guinnessfont"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2025/05/Evoke-Pictures-_Racks-Bar-Interiors__014.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Evoke Pictures _Racks Bar Interiors__014"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2023/02/racks18.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A selection of dishes from the Racks group dining in Bristol menu, perfect for groups of friends or colleagues looking to eat out in a large group."
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2025/05/Evoke-Pictures_Racks__123.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A group of friends toast colourful cocktails over pizza, wings and salad inside the cosy and stylish dining space at Racks—perfect for group catch-ups and private parties in Clifton."
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2025/03/DSC_0921-Enhanced-NR-scaled-e1761580525370.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A close up of the iconic Sunday Roast at Racks in Clifton, home to Bristol's best Sunday Lunch for groups. Can you tackle the whole thing?"
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2025/05/apple.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.racks-bristol.co.uk/wp-content/uploads/2022/12/Version-3-Badges-5.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://www.racks-bristol.co.uk/wp-content/uploads/2022/03/website-racks-dark-blue-png-1.png",
+    "guess_logo": "https://www.racks-bristol.co.uk/wp-content/uploads/2022/03/favicon.png",
+    "selected_hero": "https://www.racks-bristol.co.uk/wp-content/uploads/2022/03/website-racks-dark-blue-png-1.png",
+    "selected_logo": "https://www.racks-bristol.co.uk/wp-content/uploads/2022/03/favicon.png"
+  },
+  {
+    "business_slug": "mi-estilo",
+    "name": "Mi Estilo",
+    "address": "32 Cotham Hill, Redland, Bristol BS6 6LA, UK",
+    "website": "http://www.muinobristol.com/",
+    "candidates": [
+      {
+        "url": "http://static1.squarespace.com/static/57f51487e58c62fa2fd38c68/t/582cc067e6f2e1b254aaafdb/1479328039263/MUINO+LOGO+TRANSPARENT-03.png?format=1500w",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "http://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1479328038923-GZJOHGZUTEXI01DCT759/MUINO+LOGO+TRANSPARENT-03.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "http://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1479328038923-GZJOHGZUTEXI01DCT759/MUINO+LOGO+TRANSPARENT-03.png?format=1500w",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Muiño"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1485237604704-61DAY65Q4K5RCPEZUBM8/MUINO-LOGO-WEB-01.jpg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "MUINO-LOGO-WEB-01.jpg"
+      },
+      {
+        "url": "https://assets.squarespace.com/universal/default-favicon.ico",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559479498689-BE4UWMIWNU4ACP3QVBAL/IMG_20190417_174351_759.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "IMG_20190417_174351_759.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1494194501638-X4B6WQOC6B1EDTQSCN7B/MuinoB.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "MuinoB.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559480061114-UCXMXBMXMH644J3A66VZ/asparagus.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "asparagus.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559480103875-B73D3N9GRGADW9WVBJUG/IMG_20190307_005359_880.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "IMG_20190307_005359_880.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559480127356-91ZEM70U21GWHLOKP0ZY/IMG_20190308_100927_975.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "IMG_20190308_100927_975.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559480155684-982MFI5RIBHX52RRXFTA/chix+thigh+skewer.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "chix thigh skewer.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559480488825-GDV3H56INUPCVEQTK1UJ/shredded+lamb.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "shredded lamb.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559480199018-6F1N70359PZ16XUY2SYV/panacotta.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "panacotta.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559396050223-9LMK5TV4PT92TGHUFK0D/IMG_20190417_174351_759.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "IMG_20190417_174351_759.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1559394565895-5DQYMS6GL8PXI8MNGAP4/panacotta.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "panacotta.jpg"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1494193399565-MRFN3V2M5BXLXSHJBUZ3/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1494193514080-PGAYPIRNTEP4HCUX624M/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/38af1871-f3ef-44a4-a236-1e58a4e1437a/IMG_20220807_151122_111.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/44470f44-8a56-4b24-a2af-18db321d3286/IMG_20220122_224320_424.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/b714b844-9a7b-40c8-b9d8-0338253d96a6/potato.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "http://static1.squarespace.com/static/57f51487e58c62fa2fd38c68/t/582cc067e6f2e1b254aaafdb/1479328039263/MUINO+LOGO+TRANSPARENT-03.png?format=1500w",
+    "guess_logo": "http://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1479328038923-GZJOHGZUTEXI01DCT759/MUINO+LOGO+TRANSPARENT-03.png?format=1500w",
+    "selected_hero": "http://static1.squarespace.com/static/57f51487e58c62fa2fd38c68/t/582cc067e6f2e1b254aaafdb/1479328039263/MUINO+LOGO+TRANSPARENT-03.png?format=1500w",
+    "selected_logo": "http://images.squarespace-cdn.com/content/v1/57f51487e58c62fa2fd38c68/1479328038923-GZJOHGZUTEXI01DCT759/MUINO+LOGO+TRANSPARENT-03.png?format=1500w"
+  },
+  {
+    "business_slug": "saucy-dough",
+    "name": "Saucy Dough",
+    "address": "28 Milton Rd, Gravesend DA12 2RF, UK",
+    "website": "https://www.saucy-dough.com/",
+    "candidates": [],
+    "guess_hero": "",
+    "guess_logo": "",
+    "selected_hero": "",
+    "selected_logo": ""
+  },
+  {
+    "business_slug": "square-club",
+    "name": "Square Club",
+    "address": "The Berkeley Square Hotel, 15 Berkeley Square, Clifton, Bristol BS8 1HB, UK",
+    "website": "http://www.thesquareclub.com/",
+    "candidates": [
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/SQW-19-Extra-e1733745476334.jpg",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://thesquareclub.com/wp-content/uploads/2016/01/square-logo.jpg",
+        "source": "schema.org/logo",
+        "priority": 4,
+        "alt": ""
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/33333.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2015/09/cropped-The-Square-Club-Logo-x2.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": ""
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/33333-100x100.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2023/04/big-squarely-png.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2025/09/lowerdeck3.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "lowerdeck3"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/therestaurant-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "therestaurant.png"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/lounge-2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "lounge.png"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/secretgarden-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "secretgarden.png"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/terrace-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "terrace.png"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/suites-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "suites.png"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/sqworks-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "sqworks.png"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/privdine-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "privdine"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/weddings-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "weddings"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/privparty.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "privparty"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/nye.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "nye"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/xmas.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "xmas"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/summer.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "summer"
+      },
+      {
+        "url": "https://www.thesquareclub.com/wp-content/uploads/2024/12/DSC_9010-e1733162704334-1024x1020.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A stylish guest enjoying a glass of champagne during an exclusive event at The Square Club, a private members club known for its vibrant social atmosphere and refined gatherings."
+      }
+    ],
+    "guess_hero": "https://www.thesquareclub.com/wp-content/uploads/2024/12/SQW-19-Extra-e1733745476334.jpg",
+    "guess_logo": "https://thesquareclub.com/wp-content/uploads/2016/01/square-logo.jpg",
+    "selected_hero": "https://www.thesquareclub.com/wp-content/uploads/2024/12/SQW-19-Extra-e1733745476334.jpg",
+    "selected_logo": "https://thesquareclub.com/wp-content/uploads/2016/01/square-logo.jpg"
+  },
+  {
+    "business_slug": "my-burrito",
+    "name": "My Burrito",
+    "address": "Waverley House Cathedral Walk, Bristol, BS1 5LW",
+    "website": "https://www.myburrito.kitchen/",
+    "candidates": [
+      {
+        "url": "http://static1.squarespace.com/static/62583570712a7e5e844aba61/t/62fbb49ad822b017f0538237/1660662945475/BLogs+MB+SEO.png?format=1500w",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/8f7f0ad4-3fcb-48af-9995-632f5fec1472/My+Burrito_Stg2_Lockups_OL-04.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/e951aa6b-adf2-466c-9219-135694cc037b/favicon.ico?format=100w",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/8f7f0ad4-3fcb-48af-9995-632f5fec1472/My+Burrito_Stg2_Lockups_OL-04.png?format=1500w",
+        "source": "img",
+        "priority": 9,
+        "alt": "My Burrito"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/60fe5fab8b04766d658a8d7f/ac213f31-7098-4686-a7c2-ae01de79a31f/My+Burrito_Stg2_Lockups_OL-03.png?format=1500w",
+        "source": "img",
+        "priority": 9,
+        "alt": "My Burrito"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1649948026230-03HT16Y3ZLBRJE1NPSI8/DSC_2835.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/48d75ae8-b8d1-4f09-ae66-3acab24c30c7/My+Burrito+Great+Taste.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/3d23b184-d94b-4665-9f3b-a7f04a3f17f4/TOTW_Champion_Sauces%26Accompaniments_2023+%281%29.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/34a81e12-c0e0-4916-b5d9-eb545739ff3d/MyBurrito_AWARD+WINNING_CHIPOTLE+SAUCE+and+M_WithoutBG.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/434c8cad-ab35-4287-9658-fa29eddf8908/MB+Booklet+%283%29.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1732643125295-FWGCK9UY18U5QUZSTQCD/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1732566103188-U8URWKADTWLYLZGHKFME/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1730662681720-MSDN74VNU09G2BJ17FGY/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Valencia needs all of the help you can give please, this it's an emergency, please donate what you can it doesn't matter if it's big or small every single donation will be greatly appreciated, Thank You for your kind help!!,🙏🙏"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1730234238114-4VU90KNYB4XIEG1FN3HZ/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1728492294478-ECDZVGYIUJDAFKWOF6XS/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Essential on a full English"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1725912963321-TPH5YGT271TCOT0NAJLG/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1723815772278-FC5WSFW5I5N2M6JA5FNX/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1722886533932-UNINL59A0Y7B8HZINZ7X/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1722370364803-48Z7W4C6AD6VJ6I7TY5S/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/1720552769818-M4G0S23RXNR7ZQG31TDE/image-asset.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "http://static1.squarespace.com/static/62583570712a7e5e844aba61/t/62fbb49ad822b017f0538237/1660662945475/BLogs+MB+SEO.png?format=1500w",
+    "guess_logo": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/e951aa6b-adf2-466c-9219-135694cc037b/favicon.ico?format=100w",
+    "selected_hero": "http://static1.squarespace.com/static/62583570712a7e5e844aba61/t/62fbb49ad822b017f0538237/1660662945475/BLogs+MB+SEO.png?format=1500w",
+    "selected_logo": "https://images.squarespace-cdn.com/content/v1/62583570712a7e5e844aba61/e951aa6b-adf2-466c-9219-135694cc037b/favicon.ico?format=100w"
+  },
+  {
+    "business_slug": "harbour-hub",
+    "name": "Harbour Hub",
+    "address": "Lime Kiln Road, Bristol, BS1 5AU",
+    "website": "https://www.harbourhubbristol.co.uk/",
+    "candidates": [
+      {
+        "url": "https://www.harbourhubbristol.co.uk/wp-content/uploads/Harbour-Hub-Logo-1.png",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://harbourhub.bildabiz.co/wp-content/uploads/hh.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Harbour Hub"
+      },
+      {
+        "url": "https://harbourhub.bildabiz.co/wp-content/uploads/Harbour-Hub-Logo-1-300x300.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": ""
+      },
+      {
+        "url": "https://harbourhub.bildabiz.co/wp-content/uploads/SET-MENU-DOC_page-0001.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.harbourhubbristol.co.uk/wp-content/uploads/DSC_0108-scaled.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.harbourhubbristol.co.uk/wp-content/uploads/DSC_0131-scaled.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.harbourhubbristol.co.uk/wp-content/uploads/DSC_0139-scaled.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.harbourhubbristol.co.uk/wp-content/uploads/DSC_0140-scaled.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.harbourhubbristol.co.uk/wp-content/uploads/DSC_0144-scaled.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://www.harbourhubbristol.co.uk/wp-content/uploads/DSC_0076-scaled.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://harbourhub.bildabiz.co/wp-content/uploads/Rock-Salt.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://harbourhub.bildabiz.co/wp-content/uploads/GC.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://harbourhub.bildabiz.co/wp-content/uploads/Mangosteen.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://www.harbourhubbristol.co.uk/wp-content/uploads/Harbour-Hub-Logo-1.png",
+    "guess_logo": "https://harbourhub.bildabiz.co/wp-content/uploads/hh.png",
+    "selected_hero": "https://www.harbourhubbristol.co.uk/wp-content/uploads/Harbour-Hub-Logo-1.png",
+    "selected_logo": "https://harbourhub.bildabiz.co/wp-content/uploads/hh.png"
+  },
+  {
+    "business_slug": "restore",
+    "name": "Restore",
+    "address": "4 Longmead Ave, Bishopston, Bristol BS7 8QD, UK",
+    "website": "http://www.therestoretrust.org/",
+    "candidates": [
+      {
+        "url": "http://www.therestoretrust.org/images/logo.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "The Restore Trust"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/logo/HMPPS_2017.jpg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": ""
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/ft-logo.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "The Resetore Trust"
+      },
+      {
+        "url": "http://www.therestoretrust.org/favicon.ico",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/ft-icn1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Visit our Facebook page"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/ft-icn2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Follow us on Twitter"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/con-btn-sm.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Send us an Email"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/home.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Homepage"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/slider/slide-1.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/contact.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Send us an Email"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/slider/slide-2.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/rss.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Our Latest News Feed"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/chevron-circle-right.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "View more of our news"
+      },
+      {
+        "url": "http://www.therestoretrust.org/templates/trt-1/images/blue-arrow-right.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "-"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/templ/blocks.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "About us at The Restore Trust"
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/home-row-2a.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/home-row-2b.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/WECA_small.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/National-Careers-Service.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "http://www.therestoretrust.org/images/FareShare.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "http://www.therestoretrust.org/images/templ/ft-icn1.png",
+    "guess_logo": "http://www.therestoretrust.org/images/logo.png",
+    "selected_hero": "http://www.therestoretrust.org/images/templ/ft-icn1.png",
+    "selected_logo": "http://www.therestoretrust.org/images/logo.png"
+  },
+  {
+    "business_slug": "steak-of-the-art",
+    "name": "Steak of the Art",
+    "address": "Balmoral House Cathedral Walk, Bristol, BS1 5LW",
+    "website": "http://www.steakoftheart.co.uk/",
+    "candidates": [
+      {
+        "url": "http://www.steakoftheart.co.uk/images/design/sota-logo.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Steak of the Art"
+      },
+      {
+        "url": "http://www.steakoftheart.co.uk/images/design/icon-mobile-nav.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Main menu"
+      },
+      {
+        "url": "http://www.steakoftheart.co.uk/images/sized/f600d862ac1bd70e5038152bfe239800887eaa42.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "http://www.steakoftheart.co.uk/images/sized/4183b28a9490a28d43284c0ed4237c9ba23f90af.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "http://www.steakoftheart.co.uk/images/sized/c2dac158351253a9d2dcea9d5ef55522e3f55833.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "http://www.steakoftheart.co.uk/images/design/icon-mobile-nav.png",
+    "guess_logo": "http://www.steakoftheart.co.uk/images/design/sota-logo.png",
+    "selected_hero": "http://www.steakoftheart.co.uk/images/design/icon-mobile-nav.png",
+    "selected_logo": "http://www.steakoftheart.co.uk/images/design/sota-logo.png"
+  },
+  {
+    "business_slug": "pizzaexpress",
+    "name": "PizzaExpress",
+    "address": "Building 8 Explore Lane, Bristol, BS1 5TY",
+    "website": "https://www.pizzaexpress.com/bristol-harbourside",
+    "candidates": [
+      {
+        "url": "http://a.mktgcdn.com/p/wnvTXi2x7xmzKsiCAUQVMi14INp7xg14eaL5NQ4gaEY/700x700.png",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/5hUDQxjfuiMKxcg_ACM6CNT8eZOFJlv8gOIvNMFg09U/1778x1000.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/cm07lhwOMOa7McenkT9DRXpYgzh7wnTxJNn4UQ0LQPs/3000x1660.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/Pv7lZm2cPlOZzy31eFm_JayoZkXDqVP_HXebFEwqsbo/1500x1000.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/ZNQ_j4hqsX4-lHDCSegbvPhZuoNvPXErZj07mVe0T4c/3000x3240.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/XU-TIpoYym0UxqvEQQriGeSHbDww7JpvJcpFMzlA9vQ/1000x1025.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/4R8ndmDonxp_ktcCiop9DSGBRMhp4zgoXNC1HiYDxwI/1000x1007.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/6jDyKEEI3P_-rrqeoDEY_8hgoMY5UgOXl-gFOJuy-Pg/1000x1016.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/pbEhoN7qSOLWk_DwvfeMD3-XmLHDN_GbijOB-nAIwQo/1000x998.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/GCjrZl-S22lw7EamwZPPur3yrmX8zw2I46SWdB74ISI/1000x958.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/mhHYru8jxBPeoPS7O0B3gicCRoDZnyLeKCu61HW0g54/1000x726.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/AbFl6s_Qnqz-jrn0y_5WeAUWJ7BC978h8Oh9z8XSCh0/1000x1027.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/Fbcw0Os0SOAkjZPVfszWtBHXjF0gic0Zx0hsX78gfPg/1555x1037.jpg",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/UWFZbitPisiMb7KIEAf9I3zPy7YYYgR4giuB1-RqxDU/1000x562.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/gYZ7A0E1O5Wqe0p1XUJIg3dikP5ArbZkxzIEzh3g4z0/1000x562.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/CoKQBLLTLuFJjVPYlkOfN0dkUjA65XCKWkrtyvu6dB0/1000x562.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/0alNhjsS2fL6_hAkvE8xB8umuCzDgiz2Z1lQu_Nydxw/1000x562.png",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/mvgNbv77JDEgObEvphpHpGdsli4lz5ROridStejKOO4/512x512.jpg",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/Uwou3WKgIiJy48UyUUitDWGI9PTDf3coHwyLiFbJSNM/500x500.jpg",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://a.mktgcdn.com/p/scIf31r0uNel2AM2DA9EoQkZ781-Krfb-tVEpXcBlew/2048x1365.jpg",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "http://a.mktgcdn.com/p/wnvTXi2x7xmzKsiCAUQVMi14INp7xg14eaL5NQ4gaEY/700x700.png",
+    "guess_logo": "",
+    "selected_hero": "http://a.mktgcdn.com/p/wnvTXi2x7xmzKsiCAUQVMi14INp7xg14eaL5NQ4gaEY/700x700.png",
+    "selected_logo": ""
+  },
+  {
+    "business_slug": "hotwells-eatery",
+    "name": "Hotwells Eatery",
+    "address": "4 Jacobs Wells Road, Bristol, BS8 1EA",
+    "website": "https://hotwellseatery.uk/",
+    "candidates": [],
+    "guess_hero": "",
+    "guess_logo": "",
+    "selected_hero": "",
+    "selected_logo": ""
+  },
+  {
+    "business_slug": "hanover-street-bistro",
+    "name": "Hanover Street Bistro",
+    "address": "Bristol Hippodrome Colston Avenue, Bristol, BS1 4UZ",
+    "website": "http://www.hatbistro.co.uk/",
+    "candidates": [
+      {
+        "url": "https://static.wixstatic.com/media/218871_79700bf3f9aa46e99f67ee49c50f0b8c~mv2.jpg",
+        "source": "schema.org/image",
+        "priority": 5,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_a15e5b5e5a0e4b8a861b447cbaf0747a%7Emv2.jpg/v1/fill/w_180%2Ch_180%2Clg_1%2Cusm_0.66_1.00_0.01/218871_a15e5b5e5a0e4b8a861b447cbaf0747a%7Emv2.jpg",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_a553b027b2d44dd4aef2770635a6dd7a~mv2.png/v1/fill/w_77,h_74,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/dionysos_white_rosegold-removebg-preview.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Dionysos Cellars logo"
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_a15e5b5e5a0e4b8a861b447cbaf0747a%7Emv2.jpg/v1/fill/w_192%2Ch_192%2Clg_1%2Cusm_0.66_1.00_0.01/218871_a15e5b5e5a0e4b8a861b447cbaf0747a%7Emv2.jpg",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_a15e5b5e5a0e4b8a861b447cbaf0747a%7Emv2.jpg/v1/fill/w_32%2Ch_32%2Clg_1%2Cusm_0.66_1.00_0.01/218871_a15e5b5e5a0e4b8a861b447cbaf0747a%7Emv2.jpg",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/ef3eacff722648c79da25c362882a4bb.jpg/v1/fill/w_288,h_162,al_c,q_80,usm_0.66_1.00_0.01,blur_2,enc_avif,quality_auto/ef3eacff722648c79da25c362882a4bb.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/nsplsh_fc71a753fc084298936b35e0a57ca91d~mv2.jpg/v1/fill/w_978,h_652,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Image%20by%20Liam%20McGarry.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Image by Liam McGarry - Theater"
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_009776d089d043c895186418da3ef033~mv2.jpg/v1/fill/w_677,h_596,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/FB_IMG_1668545383344.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Hat Bistro"
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_19980d1784264f548118c2c3c5fc1c38~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_19980d1784264f548118c2c3c5fc1c38~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_5b0b0eab26c144c98b246098f7e7f3d1~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_5b0b0eab26c144c98b246098f7e7f3d1~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_644a6404526c4be58d0077c5e4e46519~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_644a6404526c4be58d0077c5e4e46519~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_306e05d84c3f42d18d9dff049c276248~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_306e05d84c3f42d18d9dff049c276248~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_b94bc7c8adb14315b227441025b968d6~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_b94bc7c8adb14315b227441025b968d6~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_ca14965d13d04ce296f8e0b620874608~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_ca14965d13d04ce296f8e0b620874608~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_329ffb6a4ff842e298a5390bca005df0~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_329ffb6a4ff842e298a5390bca005df0~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_0960d755e3294cf3ac5f449519fb29a4~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_0960d755e3294cf3ac5f449519fb29a4~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_a81f06d0551b4d5783fa169150b0e296~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_a81f06d0551b4d5783fa169150b0e296~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_1ecd4ebdc9084f20a53bf9c268935d04~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_1ecd4ebdc9084f20a53bf9c268935d04~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_8bca5120ed304d51be39dff5157b4ad7~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_8bca5120ed304d51be39dff5157b4ad7~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://static.wixstatic.com/media/218871_400c2ebf51cc4c5eb63a2c79ea7083bf~mv2.png/v1/fill/w_41,h_117,q_90,enc_avif,quality_auto/218871_400c2ebf51cc4c5eb63a2c79ea7083bf~mv2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://static.wixstatic.com/media/218871_79700bf3f9aa46e99f67ee49c50f0b8c~mv2.jpg",
+    "guess_logo": "https://static.wixstatic.com/media/218871_a553b027b2d44dd4aef2770635a6dd7a~mv2.png/v1/fill/w_77,h_74,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/dionysos_white_rosegold-removebg-preview.png",
+    "selected_hero": "https://static.wixstatic.com/media/218871_79700bf3f9aa46e99f67ee49c50f0b8c~mv2.jpg",
+    "selected_logo": "https://static.wixstatic.com/media/218871_a553b027b2d44dd4aef2770635a6dd7a~mv2.png/v1/fill/w_77,h_74,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/dionysos_white_rosegold-removebg-preview.png"
+  },
+  {
+    "business_slug": "the-harbourside-market",
+    "name": "The Harbourside Market",
+    "address": "Bristol, BS1 4DA",
+    "website": "https://www.buoyevents.co.uk/",
+    "candidates": [
+      {
+        "url": "https://www.buoyevents.co.uk/wp-content/themes/buoy-events-master-v1/theme/images/logo.svg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Buoy Events"
+      },
+      {
+        "url": "https://www.buoyevents.co.uk/wp-content/themes/buoy-events-master-v1/theme/images/favicon.ico",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.buoyevents.co.uk/wp-content/uploads/2019/09/DSC_9826-768x509.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Street food burgers at The Harbourside Market"
+      },
+      {
+        "url": "https://www.buoyevents.co.uk/wp-content/uploads/2018/10/A75D61F6-B8F6-4E4C-BA20-FD231DE6FA9C-768x509.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Lunch service at The Harbourside Street Food Market"
+      },
+      {
+        "url": "https://www.buoyevents.co.uk/wp-content/uploads/2019/09/DSC_9675-768x509.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Buoy's street food traders on the Bristol waterfront"
+      },
+      {
+        "url": "https://www.buoyevents.co.uk/wp-content/uploads/2018/09/cta-event-01-768x576.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Balloons, drinks and street food outside the Arnolfini."
+      },
+      {
+        "url": "https://www.buoyevents.co.uk/wp-content/plugins/instagram-feed/img/placeholder.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "Thank you to everyone who joined us for our first winter market 🤗🎄❄️✨⁣🎷\n⁣\nSame time and place again next weekend 🤙⁣\n⁣⁣\n#LetsEat #TheHarboursideMarket #bristolharbour #bristolharbourside #bristolfood #bristolfoodie #bristolfoodanddrink #bristoleats #whatsonbristol #bristollife #bristol #streetfood #foodtruck #foodtrucks #foodtrucklife #festivemarket"
+      }
+    ],
+    "guess_hero": "https://www.buoyevents.co.uk/wp-content/uploads/2019/09/DSC_9826-768x509.jpg",
+    "guess_logo": "https://www.buoyevents.co.uk/wp-content/themes/buoy-events-master-v1/theme/images/logo.svg",
+    "selected_hero": "https://www.buoyevents.co.uk/wp-content/uploads/2019/09/DSC_9826-768x509.jpg",
+    "selected_logo": "https://www.buoyevents.co.uk/wp-content/themes/buoy-events-master-v1/theme/images/logo.svg"
+  },
+  {
+    "business_slug": "miller-carter-steakhouse",
+    "name": "Miller & Carter Steakhouse",
+    "address": "Marriott Royal Hotel College Green, Bristol, BS1 5TA",
+    "website": "https://www.millerandcarter.co.uk/restaurants/south-west/millerandcarterbristolcitycentre",
+    "candidates": [],
+    "guess_hero": "",
+    "guess_logo": "",
+    "selected_hero": "",
+    "selected_logo": ""
+  },
+  {
+    "business_slug": "meet-up-noodle-bar",
+    "name": "Meet up noodle bar",
+    "address": "6 Marsh St, Bristol BS1 4AX, UK",
+    "website": "https://meetupnoodlebar.co.uk/",
+    "candidates": [
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/512.png",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/57.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/60.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/72.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/76.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/114.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/120.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/144.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/152.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/180.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/196.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/32.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/96.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://meetupnoodlebar.co.uk/Meetup/16.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://meetupnoodlebar.co.uk/Meetup/512.png",
+    "guess_logo": "https://meetupnoodlebar.co.uk/Meetup/57.png",
+    "selected_hero": "https://meetupnoodlebar.co.uk/Meetup/512.png",
+    "selected_logo": "https://meetupnoodlebar.co.uk/Meetup/57.png"
+  },
+  {
+    "business_slug": "bambalan",
+    "name": "Bambalan",
+    "address": "Beacon Tower Colston Street, Bristol, BS1 4XE",
+    "website": "http://www.bambalan.co.uk/",
+    "candidates": [
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2026/03/tickets-on-sale-45.jpg",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2021/09/logo-footer-1-1.png",
+        "source": "schema.org/logo",
+        "priority": 4,
+        "alt": ""
+      },
+      {
+        "url": "http://www.bambalan.co.uk/wp-content/uploads/fbrfg/apple-touch-icon.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2021/09/logo-centered.png.webp",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "logo main"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2021/09/sticky-logo-new.png.webp",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "logo main"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2021/09/logo-footer-1-1.png.webp",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Bambalan Logo"
+      },
+      {
+        "url": "http://www.bambalan.co.uk/wp-content/uploads/fbrfg/favicon-32x32.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "http://www.bambalan.co.uk/wp-content/uploads/fbrfg/favicon-16x16.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "http://www.bambalan.co.uk/wp-content/uploads/fbrfg/favicon.ico",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2026/03/tickets-on-sale-45.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "tickets-on-sale-45"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2026/03/ss25-lineuo.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "ss25-lineuo"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2026/03/bp-10th-45.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "bp-10th-45"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2026/03/image-2.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "image-2"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2026/03/rnadb.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "rnadb"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2025/05/cocktail-deal-4.5.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "cocktail deals"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2025/04/thatre-deal-4.5.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "Theatre Meal Deal"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2025/03/students-4.5.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "students get 25% off food at Bambalan Bristol with their NUS card"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2026/01/vinyl-regular.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": "vinyl-regular"
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2025/10/bamablan-hp1.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://bambalan.co.uk/wp-content/uploads/2025/05/new-menu-nl.jpg.webp",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://bambalan.co.uk/wp-content/uploads/2026/03/tickets-on-sale-45.jpg",
+    "guess_logo": "https://bambalan.co.uk/wp-content/uploads/2021/09/logo-footer-1-1.png",
+    "selected_hero": "https://bambalan.co.uk/wp-content/uploads/2026/03/tickets-on-sale-45.jpg",
+    "selected_logo": "https://bambalan.co.uk/wp-content/uploads/2021/09/logo-footer-1-1.png"
+  },
+  {
+    "business_slug": "za-za-bazaar",
+    "name": "Za Za Bazaar",
+    "address": "U Shed Canons Road, Bristol, BS1 5UH, GB",
+    "website": "http://www.zazabazaar.com/",
+    "candidates": [
+      {
+        "url": "http://www.zazabazaar.com/assets/default/images/apple-touch-icon.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "http://www.zazabazaar.com/assets/default/images/apple-touch-icon-57x57.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "http://www.zazabazaar.com/assets/default/images/apple-touch-icon-72x72.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "http://www.zazabazaar.com/assets/default/images/apple-touch-icon-114x114.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "http://www.zazabazaar.com/images/1",
+        "source": "img",
+        "priority": 9,
+        "alt": "Bar Cocktails"
+      },
+      {
+        "url": "http://www.zazabazaar.com/images/7",
+        "source": "img",
+        "priority": 9,
+        "alt": "Tex Mex Chicken & Ribs"
+      },
+      {
+        "url": "http://www.zazabazaar.com/images/8",
+        "source": "img",
+        "priority": 9,
+        "alt": "Vietnamese Pho soup"
+      },
+      {
+        "url": "http://www.zazabazaar.com/images/9",
+        "source": "img",
+        "priority": 9,
+        "alt": "Chinese Peking Duck"
+      },
+      {
+        "url": "http://www.zazabazaar.com/images/5",
+        "source": "img",
+        "priority": 9,
+        "alt": "Restaurant desserts"
+      }
+    ],
+    "guess_hero": "http://www.zazabazaar.com/images/1",
+    "guess_logo": "http://www.zazabazaar.com/assets/default/images/apple-touch-icon.png",
+    "selected_hero": "http://www.zazabazaar.com/images/1",
+    "selected_logo": "http://www.zazabazaar.com/assets/default/images/apple-touch-icon.png"
+  },
+  {
+    "business_slug": "izakaya",
+    "name": "Izakaya",
+    "address": "39-43 College Green, Bristol, BS1 5SH",
+    "website": "https://yakinikubristol.co.uk/",
+    "candidates": [
+      {
+        "url": "https://yakinikubristol.co.uk/wp-content/uploads/2025/06/cropped-yakiniku-logo-2-180x180.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://yakinikubristol.co.uk/wp-content/themes/yakiniku/assets/images/yakiniku-logo-2.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Yakiniku"
+      },
+      {
+        "url": "https://yakinikubristol.co.uk/wp-content/uploads/2025/06/cropped-yakiniku-logo-2-32x32.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://yakinikubristol.co.uk/wp-content/uploads/2025/06/cropped-yakiniku-logo-2-192x192.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://yakinikubristol.co.uk/wp-content/uploads/2025/06/lanterns.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Find out more about us"
+      },
+      {
+        "url": "https://yakinikubristol.co.uk/wp-content/uploads/2025/06/join-the-team.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://yakinikubristol.co.uk/wp-content/uploads/2025/06/lanterns.jpg",
+    "guess_logo": "https://yakinikubristol.co.uk/wp-content/themes/yakiniku/assets/images/yakiniku-logo-2.png",
+    "selected_hero": "https://yakinikubristol.co.uk/wp-content/uploads/2025/06/lanterns.jpg",
+    "selected_logo": "https://yakinikubristol.co.uk/wp-content/themes/yakiniku/assets/images/yakiniku-logo-2.png"
+  },
+  {
+    "business_slug": "pho",
+    "name": "Pho",
+    "address": "28 Clare Street, Bristol, BS1 1YA, GB",
+    "website": "https://www.phocafe.co.uk/locations/bristol/",
+    "candidates": [
+      {
+        "url": "https://www.phocafe.co.uk/wp-content/uploads/2024/11/Pho_AUG_24_RAWs2469-Edit-scaled.jpeg",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://content.phocafe.co.uk/wp-content/uploads/2024/11/202409_Pho_NewWebsite_670_MED.jpg",
+        "source": "schema.org/logo",
+        "priority": 4,
+        "alt": ""
+      },
+      {
+        "url": "https://www.phocafe.co.uk/apple-touch-icon.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/header-logo.Duh7z19x.svg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Pho Logo"
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/footer-logo.CQSDu_v8.svg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Pho Logo"
+      },
+      {
+        "url": "https://www.phocafe.co.uk/favicon-32x32.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.phocafe.co.uk/favicon-16x16.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/navigation-location-arrow.D1joh5W6.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Drop down menu icon"
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/popup-close.HgUNgkJN.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Close popup icon"
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/geolocation-icon.ChTeT_AD.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Geolocation Icon. Click to share location."
+      },
+      {
+        "url": "https://content.phocafe.co.uk/wp-content/uploads/2024/10/202409_Pho_NewWebsite_086_LRG-scaled.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A wooden table filled with various Vietnamese dishes including spring rolls, pho, and salads. Several people are reaching for food and sauces, with drinks like orange juice and cocktails visible. A bottle of sriracha sauce is on the table."
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/pin-icon-black.DzkvU5vb.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Pin Icon"
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/phone-icon-black.CVUaoG3c.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Phone Icon"
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/hero-location-times-underline.D0nkCZ15.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://content.phocafe.co.uk/wp-content/uploads/2024/10/Nutrition-close-up-image-scaled.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Close-up of a spicy noodle soup with visible ingredients like chili slices, herbs, lime wedge, white noodles, and red oil droplets. The soup appears vibrant and flavorful, showcasing a mix of fresh and spicy elements."
+      },
+      {
+        "url": "https://content.phocafe.co.uk/wp-content/uploads/2024/10/4-1.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "A white rectangular plate with five crispy spring rolls garnished with green lettuce leaves. A small bowl of dipping sauce with sliced red chili peppers is placed next to the rolls. The setup is on a light-colored surface."
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/footer-mobile-expand.CxZrGHPW.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Plus icon"
+      },
+      {
+        "url": "https://content.phocafe.co.uk/wp-content/uploads/2024/10/1-2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "A white bowl of soup with rice noodles, shredded chicken, herbs, and red chili slices, set against a light beige background."
+      },
+      {
+        "url": "https://content.phocafe.co.uk/wp-content/uploads/2024/10/Untitled-design-2.png",
+        "source": "img",
+        "priority": 9,
+        "alt": "A square bowl of curry with shrimp, red peppers, and herbs sits on a rectangular white plate next to a mound of steamed rice garnished with a mint leaf. The background is beige."
+      },
+      {
+        "url": "https://www.phocafe.co.uk/_astro/menu-items-highlight-arrow.BMrcgbWg.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Slider Arrow Previous"
+      }
+    ],
+    "guess_hero": "https://www.phocafe.co.uk/wp-content/uploads/2024/11/Pho_AUG_24_RAWs2469-Edit-scaled.jpeg",
+    "guess_logo": "https://content.phocafe.co.uk/wp-content/uploads/2024/11/202409_Pho_NewWebsite_670_MED.jpg",
+    "selected_hero": "https://www.phocafe.co.uk/wp-content/uploads/2024/11/Pho_AUG_24_RAWs2469-Edit-scaled.jpeg",
+    "selected_logo": "https://content.phocafe.co.uk/wp-content/uploads/2024/11/202409_Pho_NewWebsite_670_MED.jpg"
+  },
+  {
+    "business_slug": "m-s-food",
+    "name": "M&S Food",
+    "address": "Saint Philips Causeway London Road, 530, Bristol BS2 0YA, UK",
+    "website": "https://www.marksandspencer.com/stores/bristol-royal-nhs-hospital-1259",
+    "candidates": [
+      {
+        "url": "https://images.ctfassets.net/prxuf37q3ta2/2lWxBs6pT8khlfbcDWdgVs/de38dc499a7014a576bf0d58352169bb/M_S_Money_Logo.svg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "We accept M&S Money Logo"
+      },
+      {
+        "url": "https://images.ctfassets.net/prxuf37q3ta2/soTxuf8oq5R0sBHidg8VF/42ccdd55316ab87e09fc570e27fd7f97/clearpay-flout-logo-new.svg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Find out more about paying with ClearPay (opens in a new tab)"
+      },
+      {
+        "url": "https://images.ctfassets.net/prxuf37q3ta2/4rvY2eVMyPkXWYWyfJLbXE/0d48d5911ab3f972bd10624d1cfa0af8/02112020-1445-pay-in-3-paypal-logo.svg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Find out more about paying with PayPal Finance (opens in a new tab)"
+      },
+      {
+        "url": "https://images.ctfassets.net/prxuf37q3ta2/1CgyooMiZmiBciUHEGwjed/691d0a3f42fc44b84d39f470eb3c9c55/1116_26032025_footer_logo_app-store-logo.svg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Download the M&S app on the 1116 26032025 footer logo app-store-logo"
+      },
+      {
+        "url": "https://images.ctfassets.net/prxuf37q3ta2/4Snke5gHegCSeM8Nf2cFU4/efd8d526ee70dfc05f0bec03bdca4174/104_26022025_footer_google-play-logo.svg",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Download the M&S app on the 104 26022025 footer google-play-logo"
+      },
+      {
+        "url": "https://static.marksandspencer.com/images/favicon.ico",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://static.marksandspencer.com/icons/country-flags/UK.svg",
+        "source": "img",
+        "priority": 9,
+        "alt": "United Kingdom"
+      }
+    ],
+    "guess_hero": "https://static.marksandspencer.com/icons/country-flags/UK.svg",
+    "guess_logo": "https://images.ctfassets.net/prxuf37q3ta2/2lWxBs6pT8khlfbcDWdgVs/de38dc499a7014a576bf0d58352169bb/M_S_Money_Logo.svg",
+    "selected_hero": "https://static.marksandspencer.com/icons/country-flags/UK.svg",
+    "selected_logo": "https://images.ctfassets.net/prxuf37q3ta2/2lWxBs6pT8khlfbcDWdgVs/de38dc499a7014a576bf0d58352169bb/M_S_Money_Logo.svg"
+  },
+  {
+    "business_slug": "whiteladies-road-farmers-market",
+    "name": "Whiteladies Road Farmers' Market",
+    "address": "108 Whiteladies Rd, Redland, Bristol BS8 2RP, UK",
+    "website": "http://www.sustainableredland.org.uk/market/",
+    "candidates": [
+      {
+        "url": "https://lh3.googleusercontent.com/sitesv/AA5AbUAExs932UayaN4DEgipp8ioNYMpg34Vc-ly8WayazDfZjt4ZQTKVBkYTfwiHsv9M9MjXvKVxlfG-HZwvd1sfQwcH5H5kMjPbZT70OEn1ITqUAwQNes2Tld15G9LQrX9iEVx_eo47lAQrFHsW31YW1TCzPCHkeukaf_vTgCmJkxATyKfO8Qe_2jV-vU=w16383",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://lh3.googleusercontent.com/sitesv/AA5AbUDcdHPDgp9k-WJCkAHnFK-hG7J_Fx5oQEIpcI0BvUm8nmirBtUgeLxc7bNnQaAGLU2bmCdqwsivCe1jECViwYznSlFwJMdSWZQT8TxDa5OZqi_kj0YquONch7wkMw7fpPwrQy8ngYP2xNjtfmlAbtxac97DJygk2hDzaQO2c8ksqKNxTLimcr8AiFwfVheUSUZyHUNndXCxAbFeaXCmIA",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://lh3.googleusercontent.com/sitesv/AA5AbUDRrQPlYR_2hmryqi0Z92guyhAeIQdCM5cXqNZBrliRoNYHRV9qmkUABoV8q5htyifkjHTbtuukLmPg_8RNKNnI3S0HJUJ-lzdVh1wE4KYy9RiJbMe48ZUBQ5DXnHnuZOIltMyWhwKmSiD3u6m36PEC2cOYW_ZpYkcaDLFILy5p0TURbfWZv_HW5MFq5VDbdhvOhmuUm0TN28WoBxTvDklPiPrZbxqAN_dTo54=w1280",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      }
+    ],
+    "guess_hero": "https://lh3.googleusercontent.com/sitesv/AA5AbUAExs932UayaN4DEgipp8ioNYMpg34Vc-ly8WayazDfZjt4ZQTKVBkYTfwiHsv9M9MjXvKVxlfG-HZwvd1sfQwcH5H5kMjPbZT70OEn1ITqUAwQNes2Tld15G9LQrX9iEVx_eo47lAQrFHsW31YW1TCzPCHkeukaf_vTgCmJkxATyKfO8Qe_2jV-vU=w16383",
+    "guess_logo": "https://lh3.googleusercontent.com/sitesv/AA5AbUDcdHPDgp9k-WJCkAHnFK-hG7J_Fx5oQEIpcI0BvUm8nmirBtUgeLxc7bNnQaAGLU2bmCdqwsivCe1jECViwYznSlFwJMdSWZQT8TxDa5OZqi_kj0YquONch7wkMw7fpPwrQy8ngYP2xNjtfmlAbtxac97DJygk2hDzaQO2c8ksqKNxTLimcr8AiFwfVheUSUZyHUNndXCxAbFeaXCmIA",
+    "selected_hero": "https://lh3.googleusercontent.com/sitesv/AA5AbUAExs932UayaN4DEgipp8ioNYMpg34Vc-ly8WayazDfZjt4ZQTKVBkYTfwiHsv9M9MjXvKVxlfG-HZwvd1sfQwcH5H5kMjPbZT70OEn1ITqUAwQNes2Tld15G9LQrX9iEVx_eo47lAQrFHsW31YW1TCzPCHkeukaf_vTgCmJkxATyKfO8Qe_2jV-vU=w16383",
+    "selected_logo": "https://lh3.googleusercontent.com/sitesv/AA5AbUDcdHPDgp9k-WJCkAHnFK-hG7J_Fx5oQEIpcI0BvUm8nmirBtUgeLxc7bNnQaAGLU2bmCdqwsivCe1jECViwYznSlFwJMdSWZQT8TxDa5OZqi_kj0YquONch7wkMw7fpPwrQy8ngYP2xNjtfmlAbtxac97DJygk2hDzaQO2c8ksqKNxTLimcr8AiFwfVheUSUZyHUNndXCxAbFeaXCmIA"
+  },
+  {
+    "business_slug": "pepenero",
+    "name": "Pepenero",
+    "address": "The Square, Long Down Ave, Stoke Gifford, Bristol BS16 1GU, UK",
+    "website": "https://pepenero.co.uk/",
+    "candidates": [
+      {
+        "url": "http://static1.squarespace.com/static/68c46af6456eeb26eb273647/t/68c46af6456eeb26eb27366f/1754349234894/loogooo.png?format=1500w",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902742-ZMR9Y9ZFMGJY4DPB8SNZ/loogooo.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "Logo for Pepenero Pizza Restaurant with the word 'pepenero' in large stylized letters and 'Pizza Restaurant' beneath it. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702913647-8S2EX1FPEFB8INAKAF9G/favicon.ico?format=100w",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702911888-VI2UEB3GS7583E08HVVI/loogooo.png?format=1500w",
+        "source": "img",
+        "priority": 9,
+        "alt": "PepeNero Pizza Restaurant "
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902751-CHCQJ4LO2K9EQ3NSIXHV/503550604_1465902717717756_3832527455825662317_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Charcuterie board with sliced meats, cheese, and olives and two glasses of fruit-infused iced tea with berries, citrus slices, and fresh herbs on a wooden outdoor table with trees and a building in the background. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/9f6d721a-d0c9-4d81-bc24-4534137ca112/Floor+2+%281%29.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/7a1e6b81-96b1-40f7-a803-c8770c66b35d/Outdoor+2.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902771-KNXXMYB7A7XX7FHSSTL6/king.jpeg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902965-GQ6ECSUWJP03OCUKYPTH/517123313_1496101704697857_2548061477741767366_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Assorted Mediterranean dishes including a bowl of mixed olives, a basket of bread rolls, toasted pita bread, baked eggplant, and a salad with vegetables. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902923-6LZ3MF0U4YWYZHOTHYQD/472256222_1349333269374702_20686599990883320_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A slice of quiche with a golden crust on a wooden serving board, garnished with cherry tomatoes and basil, with pieces of chopped pistachios and some arugula underneath. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702903003-FBP5AG08X39Y9BPCSC6J/507878997_1475249043449790_5615404247875215517_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A colorful bowl with a decorative pattern containing three scoops of vanilla ice cream topped with cocoa powder. Text on the image reads, 'Make every day gelato worthy.' PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902906-YL08VUB6AGGDR6L904CX/486599292_1412060416435320_1204011497477763259_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Caprese salad with cherry tomatoes, basil leaves, mozzarella ball, and balsamic glaze on a decorative plate. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902942-SB4OF2BRCHSI07MVR5AX/515496996_1489621468679214_8426156445976090299_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Close-up of a plate of beetroot risotto topped with chopped nuts and herbs. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702903018-GBU82JTXBG3Z7SQE8D7D/482132090_1397004127940949_1486206179086145881_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A plate of risotto speck with parsley, garnished with parsley leaves, on a wooden table surrounded by green herbs, with a chef in the background in a kitchen setting. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902826-QJ2FOR889LRRS19NVZW3/481105087_1392838455024183_885739452027822351_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Pistachio cannoli with crushed pistachios and a cherry on top, served on a paper towel on a plate. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902882-SJRUPPKPFACMAKKW5QMC/504422918_1466700964304598_2474287697405818865_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Four people sitting outside at a table in front of a pizza restaurant named Pepe Nero, smiling and holding glasses of champagne, with flowers in the foreground, and wearing sunglasses. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902981-8SEX8CAYANCAVAZR0QZV/488552133_1419680695673292_4860427983944693155_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Two open pizza boxes, one with a Margherita pizza and the other with a pizza topped with pepperoni and sausage, on a wooden table. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902973-Y6UK2UXAW1B9TBREEUHM/472926742_1352934632347899_4676807950935711149_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Fresh garden salad with mixed greens, cherry tomatoes, a scoop of mozzarella cheese, and a drizzle of balsamic glaze, on a white plate. PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902898-DSO3UQV2IXLI8QYYL5IR/485150930_1409398583368170_8169870310555379607_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "A pizza is being baked in a wood-fired oven with a stone exterior. The message on the oven window that says, \"Buon Appetito!\" and a tray inside the oven. Text on the image reads, \"we cook with love\" and \"Buon Appetito\". PepeNero Pizza Restaurant"
+      },
+      {
+        "url": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902800-6249B4KUH0DKD3IRKUGP/487416285_1415174589457236_4191391512897061041_n.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Group of people dining together at a restaurant, with a sign that says \"Bring your family to Pepenero.\""
+      }
+    ],
+    "guess_hero": "http://static1.squarespace.com/static/68c46af6456eeb26eb273647/t/68c46af6456eeb26eb27366f/1754349234894/loogooo.png?format=1500w",
+    "guess_logo": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902742-ZMR9Y9ZFMGJY4DPB8SNZ/loogooo.png",
+    "selected_hero": "http://static1.squarespace.com/static/68c46af6456eeb26eb273647/t/68c46af6456eeb26eb27366f/1754349234894/loogooo.png?format=1500w",
+    "selected_logo": "https://images.squarespace-cdn.com/content/v1/68c46af6456eeb26eb273647/1757702902742-ZMR9Y9ZFMGJY4DPB8SNZ/loogooo.png"
+  },
+  {
+    "business_slug": "la-lola",
+    "name": "La Lola",
+    "address": "Glass Arcade Saint Nicholas Street, Bristol, BS1 1JQ",
+    "website": "https://lalolabristol.com/",
+    "candidates": [],
+    "guess_hero": "",
+    "guess_logo": "",
+    "selected_hero": "",
+    "selected_logo": ""
+  },
+  {
+    "business_slug": "the-ox",
+    "name": "The Ox",
+    "address": "43-45 Corn Street, Bristol, BS1 1HT",
+    "website": "http://theoxbristol.com/",
+    "candidates": [
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/12/the_ox_bristol_food.jpg",
+        "source": "og:image",
+        "priority": 1,
+        "alt": ""
+      },
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/03/highres_graphic_logo.jpg",
+        "source": "schema.org/logo",
+        "priority": 4,
+        "alt": ""
+      },
+      {
+        "url": "http://theoxbristol.com/wp-content/uploads/fbrfg/apple-touch-icon.png",
+        "source": "apple-touch-icon",
+        "priority": 6,
+        "alt": ""
+      },
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/01/logo-1-1.png",
+        "source": "img[logo]",
+        "priority": 7,
+        "alt": "logo main"
+      },
+      {
+        "url": "http://theoxbristol.com/wp-content/uploads/fbrfg/favicon-96x96.png",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "http://theoxbristol.com/wp-content/uploads/fbrfg/favicon.ico",
+        "source": "favicon",
+        "priority": 8,
+        "alt": ""
+      },
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/12/the_ox_bristol_food-1024x691.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/09/Steakhouse-Bristol-1024x690.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "Steakhouse Bristol"
+      },
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/12/the_ox_bristol_wines-1-1024x692.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": ""
+      },
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/01/the-ox-drinks-hp-1024x691.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "The Ox Best Steak Restaurant Bristol Cocktails Wine"
+      },
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/01/the-ox-sunday-roast-hp-1024x690.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "The Ox Best Sunday Roasts Bristol"
+      },
+      {
+        "url": "https://theoxbristol.com/wp-content/uploads/2025/01/the-boy-mondays-hp-1024x690.jpg",
+        "source": "img",
+        "priority": 9,
+        "alt": "The Ox Best Steak Restaurant Bristol BYO"
+      }
+    ],
+    "guess_hero": "https://theoxbristol.com/wp-content/uploads/2025/12/the_ox_bristol_food.jpg",
+    "guess_logo": "https://theoxbristol.com/wp-content/uploads/2025/03/highres_graphic_logo.jpg",
+    "selected_hero": "https://theoxbristol.com/wp-content/uploads/2025/12/the_ox_bristol_food.jpg",
+    "selected_logo": "https://theoxbristol.com/wp-content/uploads/2025/03/highres_graphic_logo.jpg"
+  }
+];
+const PAGE_SIZE = 20;
+let currentPage = 0;
+const totalPages = Math.ceil(DATA.length / PAGE_SIZE);
+
+const STORE_KEY = 'meridian_image_selections';
+
+function loadSelections() {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+  } catch { return {}; }
+}
+
+function saveSelections(selections) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(selections));
+  document.getElementById('save-status').textContent = 'Saved ' + new Date().toLocaleTimeString();
+}
+
+function getSelections() {
+  return loadSelections();
+}
+
+function setSelection(slug, type, url) {
+  const sel = loadSelections();
+  if (!sel[slug]) sel[slug] = { hero: '', logo: '' };
+  sel[slug][type] = url;
+  saveSelections(sel);
+}
+
+function clearUrl(slug, type) {
+  const sel = loadSelections();
+  if (sel[slug]) sel[slug][type] = '';
+  saveSelections(sel);
+}
+
+function renderPage() {
+  const start = currentPage * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, DATA.length);
+  const items = DATA.slice(start, end);
+  const sel = getSelections();
+  const grid = document.getElementById('listings-grid');
+  grid.innerHTML = '';
+
+  items.forEach((listing, li) => {
+    const slug = listing.business_slug || ('item_' + (start + li));
+    const current = sel[slug] || { hero: listing.selected_hero || '', logo: listing.selected_logo || '' };
+
+    // Initialise from guess if not yet set
+    if (current.hero === undefined) current.hero = listing.selected_hero || '';
+    if (current.logo === undefined) current.logo = listing.selected_logo || '';
+
+    const heroUrl = current.hero;
+    const logoUrl = current.logo;
+
+    const hasHero = heroUrl && heroUrl.trim();
+    const hasLogo = logoUrl && logoUrl.trim();
+    const statusClass = hasHero && hasLogo ? 'status-both' : (hasHero || hasLogo ? 'status-partial' : 'status-none');
+    const statusText = hasHero && hasLogo ? '✓ Hero + Logo' : hasHero ? '◑ Hero only' : hasLogo ? '◑ Logo only' : '✗ No selection';
+
+    let imagesHtml = '';
+    if (listing.candidates && listing.candidates.length > 0) {
+      listing.candidates.forEach((img, ci) => {
+        const isHero = img.url === heroUrl;
+        const isLogo = img.url === logoUrl;
+        const cardClass = [isHero ? 'hero' : '', isLogo ? 'logo' : ''].filter(Boolean).join(' ');
+        const altText = img.alt ? img.alt.substring(0, 30) : '';
+        imagesHtml += `
+          <div class="img-card ${cardClass}" id="card-${slug}-${ci}" data-url="${escHtml(img.url)}" data-slug="${escHtml(slug)}">
+            <img src="${escHtml(img.url)}" alt="${escHtml(altText)}" loading="lazy" onerror="this.style.display='none'">
+            <div class="img-meta">
+              <span class="source-badge">${escHtml(img.source)}</span>
+              <div class="img-alt">${escHtml(altText || img.url.split('/').pop().substring(0,30))}</div>
+            </div>
+            <div class="btn-row">
+              <button class="btn-tag btn-hero ${isHero ? 'active' : ''}" onclick="selectImage(event, '${escHtml(slug)}','hero','${escHtml(img.url)}')">HERO</button>
+              <button class="btn-tag btn-logo ${isLogo ? 'active' : ''}" onclick="selectImage(event, '${escHtml(slug)}','logo','${escHtml(img.url)}')">LOGO</button>
+            </div>
+          </div>`;
+      });
+    } else {
+      imagesHtml = '<p class="no-images">No images found for this website.</p>';
+    }
+
+    const websiteHtml = listing.website
+      ? `<a href="${escHtml(listing.website)}" target="_blank" rel="noopener">${escHtml(listing.website)}</a>`
+      : '';
+
+    grid.insertAdjacentHTML('beforeend', `
+      <div class="listing-card" id="listing-${escHtml(slug)}">
+        <div class="listing-header">
+          <div class="listing-info">
+            <h2>${escHtml(listing.name || 'Unknown')}</h2>
+            <div class="address">${escHtml(listing.address || '')}</div>
+            ${websiteHtml}
+          </div>
+          <span class="listing-status ${statusClass}" id="status-${escHtml(slug)}">${statusText}</span>
+        </div>
+        <div class="images-area">
+          <div class="img-grid">${imagesHtml}</div>
+        </div>
+      </div>`);
+  });
+
+  // Update pagination controls
+  document.getElementById('page-label').textContent =
+    `Page ${currentPage + 1} of ${totalPages} · listings ${start + 1}–${end}`;
+  document.getElementById('btn-prev').disabled = currentPage === 0;
+  document.getElementById('btn-next').disabled = currentPage >= totalPages - 1;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function selectImage(event, slug, type, url) {
+  event.stopPropagation();
+  const sel = loadSelections();
+  if (!sel[slug]) sel[slug] = { hero: '', logo: '' };
+  // Toggle off if already selected
+  if (sel[slug][type] === url) {
+    sel[slug][type] = '';
+  } else {
+    sel[slug][type] = url;
+  }
+  saveSelections(sel);
+
+  // Re-render just this listing's cards efficiently
+  const start = currentPage * PAGE_SIZE;
+  const listing = DATA.find(d => (d.business_slug || '') === slug);
+  if (!listing || !listing.candidates) return;
+
+  const heroUrl = sel[slug].hero || '';
+  const logoUrl = sel[slug].logo || '';
+
+  listing.candidates.forEach((img, ci) => {
+    const card = document.getElementById(`card-${slug}-${ci}`);
+    if (!card) return;
+    const isHero = img.url === heroUrl;
+    const isLogo = img.url === logoUrl;
+    card.className = 'img-card ' + [isHero ? 'hero' : '', isLogo ? 'logo' : ''].filter(Boolean).join(' ');
+    card.querySelectorAll('.btn-hero').forEach(b => b.classList.toggle('active', isHero));
+    card.querySelectorAll('.btn-logo').forEach(b => b.classList.toggle('active', isLogo));
+  });
+
+  // Update status badge
+  const badge = document.getElementById(`status-${slug}`);
+  if (badge) {
+    const hasHero = heroUrl.trim() !== '';
+    const hasLogo = logoUrl.trim() !== '';
+    badge.className = 'listing-status ' + (hasHero && hasLogo ? 'status-both' : (hasHero || hasLogo ? 'status-partial' : 'status-none'));
+    badge.textContent = hasHero && hasLogo ? '✓ Hero + Logo' : hasHero ? '◑ Hero only' : hasLogo ? '◑ Logo only' : '✗ No selection';
+  }
+}
+
+function changePage(dir) {
+  currentPage = Math.max(0, Math.min(totalPages - 1, currentPage + dir));
+  renderPage();
+}
+
+function clearPage() {
+  const start = currentPage * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, DATA.length);
+  const sel = loadSelections();
+  DATA.slice(start, end).forEach(listing => {
+    const slug = listing.business_slug;
+    if (slug && sel[slug]) { sel[slug].hero = ''; sel[slug].logo = ''; }
+  });
+  saveSelections(sel);
+  renderPage();
+}
+
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function exportCSV() {
+  const sel = loadSelections();
+  // Merge selections into DATA
+  const rows = DATA.map(listing => {
+    const slug = listing.business_slug || '';
+    const s = sel[slug] || {};
+    return {
+      ...listing,
+      selected_hero: s.hero !== undefined ? s.hero : listing.selected_hero,
+      selected_logo: s.logo !== undefined ? s.logo : listing.selected_logo,
+    };
+  });
+
+  // Build CSV with all original columns plus photo_url / logo_url filled from selections
+  // We only output the fields needed to UPDATE the CSV (business_slug, photo_url, logo_url)
+  const lines = ['business_slug,photo_url,logo_url'];
+  rows.forEach(r => {
+    const slug = csvEsc(r.business_slug || '');
+    const hero = csvEsc(r.selected_hero || '');
+    const logo = csvEsc(r.selected_logo || '');
+    lines.push(`${slug},${hero},${logo}`);
+  });
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'image_selections.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function csvEsc(val) {
+  if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+    return '"' + val.replace(/"/g, '""') + '"';
+  }
+  return val;
+}
+
+// Boot
+renderPage();
+</script>
+</body>
+</html>

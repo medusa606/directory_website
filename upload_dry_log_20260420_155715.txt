@@ -1,0 +1,35 @@
+2026-04-20 15:57:15,083 INFO Log file: /home/abc/PycharmProjects/DirectoryWebsite/upload_dry_log_20260420_155715.txt
+2026-04-20 15:57:15,361 INFO Loading CSV: baseline.csv
+2026-04-20 15:57:15,435 INFO   3,851 rows loaded
+2026-04-20 15:57:15,874 INFO Schema validation passed — all rows OK
+2026-04-20 15:57:15,874 INFO   3,851 rows passed validation
+2026-04-20 15:57:15,874 INFO Fetching existing keys from DB …
+2026-04-20 15:57:16,139 INFO   0 rows with osm_id, 20 rows with google_place_id, 20 rows with slug composite
+2026-04-20 15:57:16,710 INFO Rows to INSERT: 3,845
+2026-04-20 15:57:16,710 INFO Rows to check for delta UPDATE: 6
+2026-04-20 15:57:16,710 INFO Inserting new rows …
+2026-04-20 15:57:16,765 INFO   [DRY RUN] Would insert batch 1: 500 rows
+2026-04-20 15:57:16,765 INFO   [DRY RUN] Would insert batch 2: 500 rows
+2026-04-20 15:57:16,765 INFO   [DRY RUN] Would insert batch 3: 500 rows
+2026-04-20 15:57:16,765 INFO   [DRY RUN] Would insert batch 4: 500 rows
+2026-04-20 15:57:16,765 INFO   [DRY RUN] Would insert batch 5: 500 rows
+2026-04-20 15:57:16,765 INFO   [DRY RUN] Would insert batch 6: 500 rows
+2026-04-20 15:57:16,765 INFO   [DRY RUN] Would insert batch 7: 500 rows
+2026-04-20 15:57:16,765 INFO   [DRY RUN] Would insert batch 8: 345 rows
+2026-04-20 15:57:16,765 INFO Fetching existing rows for delta comparison …
+2026-04-20 15:57:16,855 INFO   [DRY RUN] Would update id=a12bcb52-d908-4565-823a-96287ed57479: fields=['google_rating', 'google_review_count', 'status']
+2026-04-20 15:57:16,855 INFO   [DRY RUN] Would update id=fc9b73ec-5ca4-4fc3-bd2c-27465cf599e1: fields=['google_rating', 'google_review_count', 'status']
+2026-04-20 15:57:16,855 INFO   [DRY RUN] Would update id=c1a17c96-a106-4f68-9886-de446a72ed13: fields=['google_rating', 'google_review_count', 'status']
+2026-04-20 15:57:16,855 INFO   [DRY RUN] Would update id=514b4a47-4a0f-494e-a3ce-d45504129e15: fields=['status']
+2026-04-20 15:57:16,856 INFO   [DRY RUN] Would update id=5b202a98-cddf-458c-aeb3-cdd5436a42b6: fields=['status']
+2026-04-20 15:57:16,856 INFO   [DRY RUN] Would update id=3b0aedb0-4213-47c3-9c4a-25778d239a83: fields=['status']
+2026-04-20 15:57:16,856 INFO 
+==================================================
+Upload complete [DRY RUN]
+  Inserted:          3,845
+  Delta updated:         0
+  Rating refreshed:      6
+  Skipped:               0
+  Rejected:              0
+  Errors:                0
+==================================================
