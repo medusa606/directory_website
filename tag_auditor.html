@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tag & Category Auditor — Meridian Directory</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f2f4f7;
+  color: #222;
+  min-height: 100vh;
+}
+
+/* ── Header ────────────────────────────────────────────────────── */
+header {
+  background: #1a1a2e;
+  color: #fff;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-wrap: wrap;
+}
+header h1 { font-size: 1rem; font-weight: 600; flex: 1; min-width: 160px; }
+.header-stats {
+  font-size: 0.78rem;
+  color: #bbc;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.header-stats span { white-space: nowrap; }
+.stat-val { color: #fff; font-weight: 700; }
+.stat-approved .stat-val { color: #6ee7b7; }
+.stat-skipped  .stat-val { color: #fca5a5; }
+.stat-changes  .stat-val { color: #fcd34d; }
+
+.btn-load {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-load:hover { background: #1d4ed8; }
+
+.btn-export {
+  background: #1e8c45;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-export:hover { background: #166b34; }
+.btn-export:disabled { opacity: 0.35; cursor: default; }
+
+.page-nav { display: flex; align-items: center; gap: 8px; }
+.page-nav button {
+  background: #fff2; border: 1px solid #fff3; color: #fff;
+  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+}
+.page-nav button:hover { background: #fff3; }
+.page-nav button:disabled { opacity: 0.35; cursor: default; }
+.page-label { font-size: 0.8rem; color: #aab; min-width: 100px; text-align: center; }
+
+/* ── Filter bar ─────────────────────────────────────────────────── */
+.filter-bar {
+  background: #fff;
+  border-bottom: 1px solid #e4e7ec;
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.filter-group { display: flex; gap: 4px; }
+.filter-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1.5px solid #d1d5db;
+  background: #fff;
+  color: #555;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.filter-btn:hover { border-color: #2563eb; color: #2563eb; }
+.filter-btn.active {
+  background: #1a1a2e;
+  border-color: #1a1a2e;
+  color: #fff;
+}
+.filter-sep { width: 1px; background: #e4e7ec; margin: 0 4px; align-self: stretch; }
+.search-box {
+  margin-left: auto;
+  padding: 5px 12px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  outline: none;
+  width: 200px;
+}
+.search-box:focus { border-color: #2563eb; }
+
+/* ── Drop zone / empty state ─────────────────────────────────────── */
+#drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 20px;
+  text-align: center;
+  color: #888;
+}
+#drop-zone.dragging { background: #e8f0fe; }
+#drop-zone .dz-icon { font-size: 3rem; }
+#drop-zone h2 { font-size: 1.1rem; color: #444; }
+#drop-zone p { font-size: 0.85rem; max-width: 380px; line-height: 1.6; }
+#drop-zone label {
+  background: #2563eb;
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+#drop-zone label:hover { background: #1d4ed8; }
+#file-input { display: none; }
+
+/* ── Card grid ───────────────────────────────────────────────────── */
+#cards-container { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Card ────────────────────────────────────────────────────────── */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  border: 2px solid transparent;
+  overflow: hidden;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+.card.approved { border-color: #10b981; }
+.card.skipped  { opacity: 0.45; border-color: #e5e7eb; }
+
+/* Card header */
+.card-header {
+  padding: 12px 16px 8px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+.card-title { flex: 1; }
+.card-title h2 { font-size: 0.97rem; font-weight: 700; line-height: 1.3; }
+.card-title .meta {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.card-title .meta a { color: #2563eb; text-decoration: none; }
+.card-title .meta a:hover { text-decoration: underline; }
+.card-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+
+/* Confidence badge */
+.conf-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.conf-high   { background: #d1fae5; color: #065f46; }
+.conf-medium { background: #fef3c7; color: #92400e; }
+.conf-low    { background: #fee2e2; color: #991b1b; }
+
+.source-badge {
+  font-size: 0.66rem;
+  color: #888;
+  padding: 1px 6px;
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+/* Card body: two columns */
+.card-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.col-current, .col-proposed {
+  padding: 10px 16px 12px;
+}
+.col-current { border-right: 1px solid #f3f4f6; }
+.col-label {
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+.cat-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin-bottom: 6px;
+}
+.cat-pill-current  { background: #e0e7ff; color: #3730a3; }
+.cat-pill-proposed { background: #fed7aa; color: #9a3412; }
+.cat-pill-same     { background: #e0e7ff; color: #3730a3; opacity: 0.5; }
+.cat-unchanged { font-size: 0.72rem; color: #aaa; font-style: italic; margin-bottom: 6px; }
+
+/* Tag chips */
+.tags-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+  gap: 4px;
+}
+.tag-current  { background: #f3f4f6; color: #555; }
+.tag-add      { background: #dcfce7; color: #166534; font-weight: 600; }
+.tag-remove   { background: #fee2e2; color: #991b1b; font-weight: 600; text-decoration: line-through; }
+.tag-prefix   { font-size: 0.65rem; opacity: 0.7; }
+.no-tags { font-size: 0.72rem; color: #ccc; font-style: italic; }
+
+/* Social find highlight */
+.social-find {
+  margin-top: 6px;
+  font-size: 0.7rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #1d4ed8;
+  word-break: break-all;
+}
+.social-find .social-label { font-weight: 700; margin-right: 4px; }
+
+/* Reasons */
+.card-reasons {
+  padding: 0 16px 10px;
+  border-top: 1px solid #f9fafb;
+}
+.reasons-toggle {
+  font-size: 0.72rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 6px 0 2px;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.reasons-toggle:hover { color: #374151; }
+.reasons-list {
+  margin-top: 4px;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+}
+.reasons-list.open { display: flex; }
+.reason-item {
+  font-size: 0.72rem;
+  color: #6b7280;
+  padding-left: 12px;
+  position: relative;
+  line-height: 1.5;
+}
+.reason-item::before { content: "•"; position: absolute; left: 0; color: #9ca3af; }
+
+/* Card actions */
+.card-actions {
+  padding: 8px 16px 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid #f3f4f6;
+}
+.btn-approve, .btn-skip, .btn-edit {
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: background 0.12s;
+}
+.btn-approve { background: #d1fae5; color: #065f46; }
+.btn-approve:hover, .btn-approve.active { background: #10b981; color: #fff; }
+.btn-skip    { background: #f3f4f6; color: #6b7280; }
+.btn-skip:hover, .btn-skip.active { background: #e5e7eb; color: #374151; }
+.btn-edit    { background: #e0e7ff; color: #3730a3; margin-left: auto; }
+.btn-edit:hover, .btn-edit.active { background: #6366f1; color: #fff; }
+.action-status {
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-left: 4px;
+}
+
+/* ── Edit panel ─────────────────────────────────────────────────── */
+.edit-panel {
+  display: none;
+  padding: 12px 16px;
+  border-top: 2px solid #6366f1;
+  background: #fafafa;
+  flex-direction: column;
+  gap: 12px;
+}
+.edit-panel.open { display: flex; }
+
+.edit-row { display: flex; flex-direction: column; gap: 4px; }
+.edit-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6366f1;
+}
+.edit-panel select, .edit-panel input[type="text"] {
+  border: 1.5px solid #d1d5db;
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  outline: none;
+  background: #fff;
+}
+.edit-panel select:focus,
+.edit-panel input[type="text"]:focus { border-color: #6366f1; }
+
+/* Tag edit area */
+.tag-edit-area { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tag-edit {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: #dcfce7;
+  color: #166534;
+  gap: 5px;
+}
+.tag-edit .remove-tag {
+  cursor: pointer;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  line-height: 1;
+  border: none;
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+.tag-edit .remove-tag:hover { opacity: 1; }
+.tag-add-input {
+  border: 1.5px dashed #a7f3d0;
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  width: 120px;
+  outline: none;
+  background: #f0fdf4;
+}
+.tag-add-input:focus { border-color: #10b981; }
+
+.edit-actions { display: flex; gap: 8px; }
+.btn-save {
+  background: #6366f1; color: #fff;
+  border: none; border-radius: 7px;
+  padding: 7px 18px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.btn-save:hover { background: #4f46e5; }
+.btn-cancel {
+  background: #e5e7eb; color: #555;
+  border: none; border-radius: 7px;
+  padding: 7px 14px; font-size: 0.8rem; cursor: pointer;
+}
+.btn-cancel:hover { background: #d1d5db; }
+
+/* ── Footer ─────────────────────────────────────────────────────── */
+footer {
+  text-align: center;
+  padding: 24px;
+  font-size: 0.78rem;
+  color: #aaa;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏷 Tag & Category Auditor — Meridian Directory</h1>
+  <div class="header-stats" id="header-stats" style="display:none">
+    <span class="stat-changes">Changes: <span class="stat-val" id="stat-changes">0</span></span>
+    <span class="stat-approved">Approved: <span class="stat-val" id="stat-approved">0</span></span>
+    <span class="stat-skipped">Skipped: <span class="stat-val" id="stat-skipped">0</span></span>
+    <span>Pending: <span class="stat-val" id="stat-pending">0</span></span>
+  </div>
+  <div class="page-nav" id="page-nav" style="display:none">
+    <button id="btn-prev" onclick="changePage(-1)" disabled>← Prev</button>
+    <span class="page-label" id="page-label">Page 1</span>
+    <button id="btn-next" onclick="changePage(1)">Next →</button>
+  </div>
+  <label class="btn-load" title="Load tag_audit_results.json">
+    📂 Load JSON
+    <input type="file" id="file-input" accept=".json">
+  </label>
+  <button class="btn-export" id="btn-export" onclick="exportPatches()" disabled>
+    ⬇ Export Approved
+  </button>
+</header>
+
+<div class="filter-bar" id="filter-bar" style="display:none">
+  <div class="filter-group" id="filter-view">
+    <button class="filter-btn active" data-filter="changes" onclick="setFilter('view', 'changes', this)">Has Changes</button>
+    <button class="filter-btn"        data-filter="all"     onclick="setFilter('view', 'all', this)">All Listings</button>
+    <button class="filter-btn"        data-filter="cat"     onclick="setFilter('view', 'cat', this)">Category ∆</button>
+    <button class="filter-btn"        data-filter="tags"    onclick="setFilter('view', 'tags', this)">Tag ∆</button>
+    <button class="filter-btn"        data-filter="social"  onclick="setFilter('view', 'social', this)">New Socials</button>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="filter-group" id="filter-status">
+    <button class="filter-btn active" data-filter="all"      onclick="setFilter('status', 'all', this)">All Status</button>
+    <button class="filter-btn"        data-filter="pending"  onclick="setFilter('status', 'pending', this)">Pending</button>
+    <button class="filter-btn"        data-filter="approved" onclick="setFilter('status', 'approved', this)">Approved</button>
+    <button class="filter-btn"        data-filter="skipped"  onclick="setFilter('status', 'skipped', this)">Skipped</button>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="filter-group">
+    <button class="filter-btn" onclick="bulkApprove()">✓ Approve All Visible</button>
+    <button class="filter-btn" onclick="bulkSkip()">✗ Skip All Visible</button>
+  </div>
+  <input type="text" class="search-box" id="search-box" placeholder="Search name / area…" oninput="onSearch()">
+</div>
+
+<div id="drop-zone">
+  <div class="dz-icon">🏷</div>
+  <h2>Tag & Category Auditor</h2>
+  <p>
+    Run <code>python audit_tags.py --crawl</code> to generate
+    <strong>tag_audit_results.json</strong>, then load it here to review
+    proposed changes before exporting <strong>approved_patches.json</strong>.
+  </p>
+  <label>
+    Load tag_audit_results.json
+    <input type="file" id="file-input-dz" accept=".json">
+  </label>
+</div>
+
+<div id="cards-container" style="display:none"></div>
+<footer id="footer" style="display:none">
+  Select actions per listing, then click <strong>Export Approved</strong> to
+  download <code>approved_patches.json</code>. Run
+  <code>python apply_patches.py</code> to apply to the CSV.
+</footer>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  "Art & Design",
+  "Cafes & Coffee",
+  "Craft & Makers",
+  "Drinks & Brewing",
+  "Entertainment",
+  "Food & Produce",
+  "Health & Wellbeing",
+  "Home & Interiors",
+  "Plants & Garden",
+  "Restaurants & Fast Food",
+  "Services",
+];
+
+const CATEGORY_META = {
+  "Art & Design":            { key: "art_design",        slug: "art-and-design"       },
+  "Cafes & Coffee":          { key: "restaurants_cafes",  slug: "cafes"                },
+  "Craft & Makers":          { key: "craft_makers",       slug: "craft-and-makers"     },
+  "Drinks & Brewing":        { key: "drinks_brewing",     slug: "drinks-and-brewing"   },
+  "Entertainment":           { key: "entertainment",      slug: "entertainment"         },
+  "Food & Produce":          { key: "food_produce",       slug: "food-and-produce"     },
+  "Health & Wellbeing":      { key: "health_wellbeing",   slug: "health-and-wellbeing" },
+  "Home & Interiors":        { key: "home_interiors",     slug: "home-and-interiors"   },
+  "Plants & Garden":         { key: "plants_garden",      slug: "plants-and-garden"    },
+  "Restaurants & Fast Food": { key: "restaurants_cafes",  slug: "restaurants"          },
+  "Services":                { key: "services",           slug: "services"             },
+};
+
+const PER_PAGE    = 20;
+const LS_PREFIX   = "meridian_tag_audit_";
+
+// ── State ──────────────────────────────────────────────────────────────────
+let allListings   = [];
+let auditMeta     = {};
+let decisions     = {};   // { id: { action: 'pending'|'approved'|'skipped', overrides: {...} } }
+let currentPage   = 0;
+let filtered      = [];
+let activeFilters = { view: "changes", status: "all" };
+let searchQuery   = "";
+let lsKey         = "";
+
+// ── File loading ───────────────────────────────────────────────────────────
+function bindFileInputs() {
+  document.getElementById("file-input").addEventListener("change", e => loadFile(e.target.files[0]));
+  document.getElementById("file-input-dz").addEventListener("change", e => loadFile(e.target.files[0]));
+}
+
+function loadFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      initAuditData(data);
+    } catch (err) {
+      alert("Could not parse JSON: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function initAuditData(data) {
+  auditMeta    = { ...data };
+  allListings  = data.listings || [];
+  delete auditMeta.listings;
+
+  lsKey = LS_PREFIX + (data.generated_at || Date.now());
+
+  // Restore saved decisions if available
+  const saved = localStorage.getItem(lsKey);
+  decisions   = saved ? JSON.parse(saved) : {};
+
+  // Initialise pending decisions for new items
+  for (const item of allListings) {
+    if (!decisions[item.id]) {
+      decisions[item.id] = { action: "pending", overrides: null };
+    }
+  }
+
+  // Show UI
+  document.getElementById("drop-zone").style.display      = "none";
+  document.getElementById("cards-container").style.display = "";
+  document.getElementById("filter-bar").style.display      = "";
+  document.getElementById("footer").style.display          = "";
+  document.getElementById("header-stats").style.display    = "";
+  document.getElementById("page-nav").style.display        = "";
+
+  applyFilters();
+  updateStats();
+}
+
+// ── Filtering ──────────────────────────────────────────────────────────────
+function setFilter(type, value, btn) {
+  activeFilters[type] = value;
+  // Update button active state
+  btn.closest(".filter-group").querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  currentPage = 0;
+  applyFilters();
+}
+
+function onSearch() {
+  searchQuery = document.getElementById("search-box").value.toLowerCase().trim();
+  currentPage = 0;
+  applyFilters();
+}
+
+function applyFilters() {
+  const { view, status } = activeFilters;
+
+  filtered = allListings.filter(item => {
+    // Search
+    if (searchQuery) {
+      const haystack = (item.name + " " + item.area_slug + " " + item.address).toLowerCase();
+      if (!haystack.includes(searchQuery)) return false;
+    }
+    // View filter
+    if (view === "changes" && !item.has_changes) return false;
+    if (view === "cat")    {
+      if (!item.proposed.category) return false;
+    }
+    if (view === "tags") {
+      const p = item.proposed;
+      if (!p.tags_add?.length && !p.tags_remove?.length) return false;
+    }
+    if (view === "social") {
+      const p = item.proposed;
+      if (!p.social_instagram && !p.social_facebook && !p.social_twitter) return false;
+    }
+    // Status filter
+    const action = decisions[item.id]?.action || "pending";
+    if (status !== "all" && action !== status) return false;
+
+    return true;
+  });
+
+  renderPage();
+}
+
+// ── Pagination ─────────────────────────────────────────────────────────────
+function changePage(dir) {
+  const maxPage = Math.max(0, Math.ceil(filtered.length / PER_PAGE) - 1);
+  currentPage = Math.min(Math.max(0, currentPage + dir), maxPage);
+  renderPage();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderPage() {
+  const container = document.getElementById("cards-container");
+  const start = currentPage * PER_PAGE;
+  const slice = filtered.slice(start, start + PER_PAGE);
+
+  container.innerHTML = slice.map(item => buildCard(item)).join("");
+
+  // Bind events on all cards
+  slice.forEach(item => bindCardEvents(item.id));
+
+  // Pagination controls
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  document.getElementById("page-label").textContent =
+    `Page ${currentPage + 1} of ${totalPages} (${filtered.length} listings)`;
+  document.getElementById("btn-prev").disabled = currentPage === 0;
+  document.getElementById("btn-next").disabled = currentPage >= totalPages - 1;
+}
+
+// ── Card rendering ─────────────────────────────────────────────────────────
+function buildCard(item) {
+  const d        = decisions[item.id] || { action: "pending", overrides: null };
+  const action   = d.action;
+  const eff      = effectiveProposed(item, d);
+  const curr     = item.current;
+
+  const confPct  = Math.round((item.confidence || 0) * 100);
+  const confCls  = confPct >= 80 ? "conf-high" : confPct >= 60 ? "conf-medium" : "conf-low";
+  const confLabel = confPct >= 80 ? `HIGH ${confPct}%` : confPct >= 60 ? `MED ${confPct}%` : `LOW ${confPct}%`;
+
+  // Category column
+  const catCurrentHtml = `<div class="cat-pill cat-pill-current">${esc(curr.category)}</div>`;
+  let catProposedHtml;
+  if (eff.category && eff.category !== curr.category) {
+    catProposedHtml = `<div class="cat-pill cat-pill-proposed">→ ${esc(eff.category)}</div>`;
+  } else {
+    catProposedHtml = `<div class="cat-unchanged">no change</div>`;
+  }
+
+  // Tags current
+  const currentTagsHtml = curr.tags && curr.tags.length
+    ? curr.tags.map(t => `<span class="tag tag-current">${esc(t)}</span>`).join("")
+    : `<span class="no-tags">none</span>`;
+
+  // Tags proposed
+  const removeSet = new Set(eff.tags_remove || []);
+  const addList   = eff.tags_add || [];
+  let proposedTagsHtml = "";
+  if (addList.length || removeSet.size) {
+    const addParts = addList.map(t =>
+      `<span class="tag tag-add"><span class="tag-prefix">+</span>${esc(t)}</span>`
+    );
+    const removeParts = [...removeSet].map(t =>
+      `<span class="tag tag-remove"><span class="tag-prefix">−</span>${esc(t)}</span>`
+    );
+    proposedTagsHtml = [...addParts, ...removeParts].join("") || `<span class="no-tags">no changes</span>`;
+  } else {
+    proposedTagsHtml = `<span class="no-tags">no changes</span>`;
+  }
+
+  // Social finds
+  let socialHtml = "";
+  for (const [field, label] of [
+    ["social_instagram", "Instagram"],
+    ["social_facebook",  "Facebook"],
+    ["social_twitter",   "Twitter"],
+  ]) {
+    const val = eff[field];
+    if (val) {
+      socialHtml += `
+        <div class="social-find">
+          <span class="social-label">${label}</span>
+          <a href="${esc(val)}" target="_blank" rel="noopener">${esc(val)}</a>
+        </div>`;
+    }
+  }
+
+  // Reasons
+  const reasons = item.reasons || [];
+  const reasonsHtml = reasons.length
+    ? reasons.map(r => `<div class="reason-item">${esc(r)}</div>`).join("")
+    : "";
+
+  // Source badge
+  const crawledBadge = item.crawled
+    ? `<span class="source-badge">name + crawl</span>`
+    : `<span class="source-badge">name only</span>`;
+
+  // Action button state
+  const approveActive = action === "approved" ? " active" : "";
+  const skipActive    = action === "skipped"  ? " active" : "";
+
+  // Edit panel (build with current overrides)
+  const editPanel = buildEditPanel(item, d);
+
+  const websiteLink = item.website
+    ? `<a href="${esc(item.website)}" target="_blank" rel="noopener">🌐 ${esc(item.website.replace(/^https?:\/\//, ""))}</a>`
+    : "";
+  const areaLabel = item.area_slug ? item.area_slug.replace(/-/g, " ") : "";
+
+  return `
+<div class="card ${action}" id="card-${item.id}">
+  <div class="card-header">
+    <div class="card-title">
+      <h2>${esc(item.name)}</h2>
+      <div class="meta">
+        ${item.address ? `<span>${esc(truncate(item.address, 60))}</span>` : ""}
+        ${areaLabel    ? `<span>${esc(areaLabel)}</span>` : ""}
+        ${websiteLink}
+      </div>
+    </div>
+    <div class="card-badges">
+      <span class="conf-badge ${confCls}">${confLabel}</span>
+      ${crawledBadge}
+    </div>
+  </div>
+
+  <div class="card-body">
+    <div class="col-current">
+      <div class="col-label">Current</div>
+      ${catCurrentHtml}
+      <div class="tags-row">${currentTagsHtml}</div>
+    </div>
+    <div class="col-proposed">
+      <div class="col-label">Proposed</div>
+      ${catProposedHtml}
+      <div class="tags-row">${proposedTagsHtml}</div>
+      ${socialHtml}
+    </div>
+  </div>
+
+  ${reasonsHtml ? `
+  <div class="card-reasons">
+    <div class="reasons-toggle" onclick="toggleReasons('${item.id}')">
+      <span id="reasons-arrow-${item.id}">▶</span> ${reasons.length} reason${reasons.length !== 1 ? "s" : ""}
+    </div>
+    <div class="reasons-list" id="reasons-${item.id}">
+      ${reasonsHtml}
+    </div>
+  </div>` : ""}
+
+  <div class="card-actions">
+    <button class="btn-approve${approveActive}" onclick="setDecision('${item.id}', 'approved')">✓ Approve</button>
+    <button class="btn-skip${skipActive}"       onclick="setDecision('${item.id}', 'skipped')">✗ Skip</button>
+    <button class="btn-edit" onclick="toggleEdit('${item.id}')">✎ Edit</button>
+  </div>
+
+  <div class="edit-panel" id="edit-${item.id}">
+    ${editPanel}
+  </div>
+</div>`;
+}
+
+function buildEditPanel(item, d) {
+  const eff  = effectiveProposed(item, d);
+  const curr = item.current;
+
+  // Category dropdown
+  const catOptions = CATEGORIES.map(c => {
+    const isSelected = (eff.category || curr.category) === c;
+    return `<option value="${esc(c)}"${isSelected ? " selected" : ""}>${esc(c)}</option>`;
+  }).join("");
+
+  // Tags to add chips
+  const tagsAddChips = (eff.tags_add || []).map(t =>
+    `<span class="tag-edit">
+       ${esc(t)}
+       <button class="remove-tag" onclick="removeAddTag('${item.id}','${esc(t)}')" title="Remove">×</button>
+     </span>`
+  ).join("");
+
+  // Social inputs
+  const ig = eff.social_instagram || "";
+  const fb = eff.social_facebook  || "";
+  const tw = eff.social_twitter   || "";
+
+  return `
+    <div class="edit-row">
+      <div class="edit-label">Category</div>
+      <select id="edit-cat-${item.id}">${catOptions}</select>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Tags to Add</div>
+      <div class="tag-edit-area" id="edit-tags-add-${item.id}">
+        ${tagsAddChips}
+        <input type="text" class="tag-add-input" id="edit-tag-input-${item.id}"
+               placeholder="+ add tag"
+               onkeydown="onTagInputKey(event,'${item.id}')">
+      </div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Instagram</div>
+      <input type="text" id="edit-ig-${item.id}" value="${esc(ig)}"
+             placeholder="https://www.instagram.com/…">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Facebook</div>
+      <input type="text" id="edit-fb-${item.id}" value="${esc(fb)}"
+             placeholder="https://www.facebook.com/…">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Twitter / X</div>
+      <input type="text" id="edit-tw-${item.id}" value="${esc(tw)}"
+             placeholder="https://twitter.com/…">
+    </div>
+    <div class="edit-actions">
+      <button class="btn-save"   onclick="saveEdit('${item.id}')">Save & Approve</button>
+      <button class="btn-cancel" onclick="toggleEdit('${item.id}')">Cancel</button>
+    </div>`;
+}
+
+function bindCardEvents(id) { /* events bound inline */ }
+
+// ── Decision management ────────────────────────────────────────────────────
+function setDecision(id, action) {
+  if (!decisions[id]) decisions[id] = { action: "pending", overrides: null };
+  // Toggle: clicking the active button resets to pending
+  decisions[id].action = (decisions[id].action === action) ? "pending" : action;
+  saveDecisions();
+  updateStats();
+  // Re-render just this card's state (faster than full re-render)
+  refreshCard(id);
+}
+
+function toggleReasons(id) {
+  const list  = document.getElementById("reasons-" + id);
+  const arrow = document.getElementById("reasons-arrow-" + id);
+  const open  = list.classList.toggle("open");
+  arrow.textContent = open ? "▼" : "▶";
+}
+
+function toggleEdit(id) {
+  const panel = document.getElementById("edit-" + id);
+  const isOpen = panel.classList.toggle("open");
+  // Rebuild panel content when opening (to reflect latest overrides)
+  if (isOpen) {
+    const item = allListings.find(x => x.id === id);
+    const d    = decisions[id];
+    panel.innerHTML = buildEditPanel(item, d);
+  }
+}
+
+function onTagInputKey(e, id) {
+  if (e.key !== "Enter" && e.key !== ",") return;
+  e.preventDefault();
+  const input = document.getElementById("edit-tag-input-" + id);
+  const val   = input.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  if (!val) return;
+  input.value = "";
+  // Add to the tags-add area temporarily (stored on save)
+  const area = document.getElementById("edit-tags-add-" + id);
+  const chip = document.createElement("span");
+  chip.className = "tag-edit";
+  chip.dataset.tag = val;
+  chip.innerHTML = `${esc(val)} <button class="remove-tag" onclick="this.parentElement.remove()" title="Remove">×</button>`;
+  area.insertBefore(chip, area.lastElementChild);
+}
+
+function removeAddTag(id, tag) {
+  // Remove chip from the edit panel
+  const area  = document.getElementById("edit-tags-add-" + id);
+  if (!area) return;
+  for (const chip of area.querySelectorAll(".tag-edit")) {
+    if ((chip.dataset.tag || chip.textContent.trim().replace("×", "").trim()) === tag) {
+      chip.remove();
+      return;
+    }
+  }
+}
+
+function saveEdit(id) {
+  const item = allListings.find(x => x.id === id);
+  if (!item) return;
+
+  const selCat   = document.getElementById("edit-cat-" + id);
+  const igInput  = document.getElementById("edit-ig-" + id);
+  const fbInput  = document.getElementById("edit-fb-" + id);
+  const twInput  = document.getElementById("edit-tw-" + id);
+  const tagsArea = document.getElementById("edit-tags-add-" + id);
+
+  // Gather tags
+  const tagsAdd = [];
+  for (const chip of tagsArea.querySelectorAll(".tag-edit")) {
+    const t = (chip.dataset.tag || chip.childNodes[0]?.textContent?.trim()).toLowerCase().trim();
+    if (t) tagsAdd.push(t);
+  }
+
+  const newCat    = selCat.value;
+  const catMeta   = CATEGORY_META[newCat] || {};
+  const origProp  = item.proposed;
+
+  if (!decisions[id]) decisions[id] = { action: "pending", overrides: null };
+  decisions[id].overrides = {
+    category:      newCat !== item.current.category ? newCat : null,
+    category_key:  newCat !== item.current.category ? (catMeta.key || null)  : null,
+    category_slug: newCat !== item.current.category ? (catMeta.slug || null) : null,
+    tags_add:      tagsAdd,
+    tags_remove:   origProp.tags_remove || [],
+    social_instagram: igInput.value.trim() || null,
+    social_facebook:  fbInput.value.trim() || null,
+    social_twitter:   twInput.value.trim() || null,
+  };
+  decisions[id].action = "approved";
+
+  saveDecisions();
+  updateStats();
+  refreshCard(id);
+}
+
+function effectiveProposed(item, d) {
+  if (d?.overrides) return d.overrides;
+  return item.proposed;
+}
+
+// ── Bulk actions ───────────────────────────────────────────────────────────
+function bulkApprove() {
+  for (const item of filtered) {
+    if (!decisions[item.id]) decisions[item.id] = { action: "pending", overrides: null };
+    if (decisions[item.id].action === "pending") decisions[item.id].action = "approved";
+  }
+  saveDecisions();
+  updateStats();
+  renderPage();
+}
+
+function bulkSkip() {
+  for (const item of filtered) {
+    if (!decisions[item.id]) decisions[item.id] = { action: "pending", overrides: null };
+    if (decisions[item.id].action === "pending") decisions[item.id].action = "skipped";
+  }
+  saveDecisions();
+  updateStats();
+  renderPage();
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+function updateStats() {
+  let approved = 0, skipped = 0, pending = 0, changes = 0;
+  for (const item of allListings) {
+    if (item.has_changes) changes++;
+    const a = decisions[item.id]?.action || "pending";
+    if (a === "approved") approved++;
+    else if (a === "skipped") skipped++;
+    else pending++;
+  }
+  document.getElementById("stat-changes").textContent  = changes;
+  document.getElementById("stat-approved").textContent = approved;
+  document.getElementById("stat-skipped").textContent  = skipped;
+  document.getElementById("stat-pending").textContent  = pending;
+
+  document.getElementById("btn-export").disabled = approved === 0;
+}
+
+// ── Re-render a single card ────────────────────────────────────────────────
+function refreshCard(id) {
+  const item = allListings.find(x => x.id === id);
+  const el   = document.getElementById("card-" + id);
+  if (!item || !el) { renderPage(); return; }
+
+  const d      = decisions[id] || { action: "pending", overrides: null };
+  const newHtml = buildCard(item);
+  const tmp     = document.createElement("div");
+  tmp.innerHTML = newHtml;
+  const newCard = tmp.firstElementChild;
+  el.replaceWith(newCard);
+  bindCardEvents(id);
+}
+
+// ── Persistence ────────────────────────────────────────────────────────────
+function saveDecisions() {
+  if (!lsKey) return;
+  try { localStorage.setItem(lsKey, JSON.stringify(decisions)); } catch (_) {}
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function exportPatches() {
+  const patches = [];
+  for (const item of allListings) {
+    const d = decisions[item.id];
+    if (!d || d.action !== "approved") continue;
+
+    const eff = effectiveProposed(item, d);
+    patches.push({
+      id:            item.id,
+      business_slug: item.business_slug,
+      name:          item.name,
+      proposed: {
+        category:      eff.category      || null,
+        category_key:  eff.category_key  || null,
+        category_slug: eff.category_slug || null,
+        tags_add:      eff.tags_add      || [],
+        tags_remove:   eff.tags_remove   || [],
+        social_instagram: eff.social_instagram || null,
+        social_facebook:  eff.social_facebook  || null,
+        social_twitter:   eff.social_twitter   || null,
+      },
+    });
+  }
+
+  if (!patches.length) { alert("No approved listings to export."); return; }
+
+  const blob = new Blob([JSON.stringify(patches, null, 2)], { type: "application/json" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = "approved_patches.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Drag & drop ────────────────────────────────────────────────────────────
+function initDragDrop() {
+  const dz = document.getElementById("drop-zone");
+  dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("dragging"); });
+  dz.addEventListener("dragleave", ()  => dz.classList.remove("dragging"));
+  dz.addEventListener("drop", e => {
+    e.preventDefault();
+    dz.classList.remove("dragging");
+    const file = e.dataTransfer.files[0];
+    if (file && file.name.endsWith(".json")) loadFile(file);
+  });
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function esc(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function truncate(str, max) {
+  if (!str || str.length <= max) return str;
+  return str.slice(0, max) + "…";
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+bindFileInputs();
+initDragDrop();
+</script>
+
+</body>
+</html>

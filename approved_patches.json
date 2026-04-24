@@ -1,0 +1,55 @@
+[
+  {
+    "id": "13c7d523-e25a-42f7-8215-e97b2cff168b",
+    "business_slug": "blue-sky-pizza-and-kebab",
+    "name": "Blue Sky Pizza and Kebab",
+    "proposed": {
+      "category": null,
+      "category_key": null,
+      "category_slug": null,
+      "tags_add": [
+        "pizza"
+      ],
+      "tags_remove": [],
+      "social_instagram": null,
+      "social_facebook": null,
+      "social_twitter": null
+    }
+  },
+  {
+    "id": "1a9f20a6-f7ec-4065-9ce2-7f3193f89456",
+    "business_slug": "trika-yoga",
+    "name": "Trika Yoga",
+    "proposed": {
+      "category": null,
+      "category_key": null,
+      "category_slug": null,
+      "tags_add": [
+        "yoga"
+      ],
+      "tags_remove": [],
+      "social_instagram": null,
+      "social_facebook": null,
+      "social_twitter": null
+    }
+  },
+  {
+    "id": "e7ac23eb-090a-4714-8b35-90694e822441",
+    "business_slug": "margetts-margetts",
+    "name": "Margetts & Margetts",
+    "proposed": {
+      "category": "Home & Interiors",
+      "category_key": "home_interiors",
+      "category_slug": "home-and-interiors",
+      "tags_add": [
+        "kitchen_designer"
+      ],
+      "tags_remove": [
+        "kitchen"
+      ],
+      "social_instagram": null,
+      "social_facebook": "https://en-gb.facebook.com/Margettskitchens/",
+      "social_twitter": null
+    }
+  }
+]
