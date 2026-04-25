@@ -1,0 +1,23 @@
+[
+  {
+    "id": "001f3444-9650-4132-b251-8ccbee3d9d47",
+    "business_slug": "swoon",
+    "name": "Swoon",
+    "proposed": {
+      "category": "Restaurants",
+      "category_slug": "restaurants",
+      "secondary_category": "Cafes",
+      "secondary_category_slug": "cafes",
+      "image_category": "ice-cream",
+      "tags_add": [],
+      "tags_remove": [],
+      "social_instagram": null,
+      "social_facebook": null,
+      "social_twitter": "https://twitter.com/swoongelato",
+      "address": "31 College Green, Bristol BS1 5TB",
+      "phone": "0117 9290093",
+      "gmaps_url": "https://maps.app.goo.gl/m4ZAHKwFEyqVcbzx9",
+      "opening_hours": "Saturday\n10 am–11:30 pm\n\nSunday\n10 am–11 pm\n\nMonday\n10 am–11 pm\n\nTuesday\n10 am–11 pm\n\nWednesday\n10 am–11 pm\n\nThursday\n10 am–11 pm\n\nFriday\n10 am–11:30 pm"
+    }
+  }
+]

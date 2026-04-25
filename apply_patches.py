@@ -68,15 +68,28 @@ def main():
         fieldnames = list(reader.fieldnames)  # type: ignore
         rows     = list(reader)
 
+    # Ensure new columns exist in fieldnames
+    for col in ["secondary_category", "secondary_category_slug", "image_category"]:
+        if col not in fieldnames:
+            fieldnames.append(col)
+
     # Counters
-    listings_patched   = 0
-    categories_changed = 0
-    tags_added         = 0
-    tags_removed       = 0
-    instagram_added    = 0
-    facebook_added     = 0
-    twitter_added      = 0
-    change_log: list[str] = []
+    listings_patched        = 0
+    categories_changed      = 0
+    secondary_categories_added = 0
+    image_categories_added  = 0
+    tags_added              = 0
+    tags_removed            = 0
+    instagram_added         = 0
+    facebook_added          = 0
+    twitter_added           = 0
+    description_added       = 0
+    email_added             = 0
+    address_added           = 0
+    phone_added             = 0
+    gmaps_added             = 0
+    hours_added             = 0
+    change_log: list[str]   = []
 
     for row in rows:
         row_id = row.get("id", "")
@@ -100,6 +113,34 @@ def main():
             change_log.append(
                 f"  [{row.get('name')}] category: '{old_cat}' → '{proposed['category']}'"
             )
+
+        # ── Secondary Category ────────────────────────────────────────────
+        if proposed.get("secondary_category") is not None:
+            old_secondary = row.get("secondary_category", "")
+            new_secondary = proposed.get("secondary_category") or ""
+            if new_secondary != old_secondary:
+                row["secondary_category"] = new_secondary
+                if proposed.get("secondary_category_slug") is not None:
+                    row["secondary_category_slug"] = proposed.get("secondary_category_slug") or ""
+                if new_secondary:  # Only count if setting to a value (not clearing)
+                    secondary_categories_added += 1
+                patched = True
+                change_log.append(
+                    f"  [{row.get('name')}] secondary_category: '{old_secondary}' → '{new_secondary}'"
+                )
+
+        # ── Image Category ────────────────────────────────────────────────
+        if proposed.get("image_category") is not None:
+            old_image_cat = row.get("image_category", "")
+            new_image_cat = proposed.get("image_category") or ""
+            if new_image_cat != old_image_cat:
+                row["image_category"] = new_image_cat
+                if new_image_cat:  # Only count if setting to a value (not clearing)
+                    image_categories_added += 1
+                patched = True
+                change_log.append(
+                    f"  [{row.get('name')}] image_category: '{old_image_cat}' → '{new_image_cat}'"
+                )
 
         # ── Tags ──────────────────────────────────────────────────────────
         current_tags = parse_tags(row.get("tags", ""))
@@ -141,6 +182,60 @@ def main():
                 if field == "social_facebook":  facebook_added  += 1
                 if field == "social_twitter":   twitter_added   += 1
 
+        # ── Address ───────────────────────────────────────────────────────
+        if proposed.get("address") is not None:
+            new_addr = proposed.get("address") or ""
+            if new_addr and not row.get("address", "").strip():
+                row["address"] = new_addr
+                address_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] address: added")
+
+        # ── Phone ─────────────────────────────────────────────────────────
+        if proposed.get("phone") is not None:
+            new_phone = proposed.get("phone") or ""
+            if new_phone and not row.get("phone", "").strip():
+                row["phone"] = new_phone
+                phone_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] phone: {new_phone}")
+
+        # ── Google Maps URL ───────────────────────────────────────────────
+        if proposed.get("gmaps_url") is not None:
+            new_gmaps = proposed.get("gmaps_url") or ""
+            if new_gmaps and not row.get("google_maps_url", "").strip():
+                row["google_maps_url"] = new_gmaps
+                gmaps_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] google_maps_url: added")
+
+        # ── Opening Hours ─────────────────────────────────────────────────
+        if proposed.get("opening_hours") is not None:
+            new_hours = proposed.get("opening_hours") or ""
+            if new_hours and not row.get("opening_hours", "").strip():
+                row["opening_hours"] = new_hours
+                hours_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] opening_hours: added")
+
+        # ── Description ───────────────────────────────────────────────────
+        if proposed.get("description") is not None:
+            new_desc = proposed.get("description") or ""
+            if new_desc and not row.get("description", "").strip():
+                row["description"] = new_desc
+                description_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] description: added")
+
+        # ── Email ─────────────────────────────────────────────────────────
+        if proposed.get("email") is not None:
+            new_email = proposed.get("email") or ""
+            if new_email and not row.get("email", "").strip():
+                row["email"] = new_email
+                email_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] email: {new_email}")
+
         if patched:
             listings_patched += 1
 
@@ -153,13 +248,21 @@ def main():
     print(f"\n{'='*60}")
     print(f"PATCHES APPLIED  →  {args.output}")
     print(f"{'='*60}")
-    print(f"Listings patched   : {listings_patched}")
-    print(f"Categories changed : {categories_changed}")
-    print(f"Tags added         : {tags_added}")
-    print(f"Tags removed       : {tags_removed}")
-    print(f"Instagram added    : {instagram_added}")
-    print(f"Facebook added     : {facebook_added}")
-    print(f"Twitter added      : {twitter_added}")
+    print(f"Listings patched        : {listings_patched}")
+    print(f"Categories changed      : {categories_changed}")
+    print(f"Secondary categories    : {secondary_categories_added}")
+    print(f"Image categories        : {image_categories_added}")
+    print(f"Tags added              : {tags_added}")
+    print(f"Tags removed            : {tags_removed}")
+    print(f"Instagram added         : {instagram_added}")
+    print(f"Facebook added          : {facebook_added}")
+    print(f"Twitter added           : {twitter_added}")
+    print(f"Descriptions added      : {description_added}")
+    print(f"Emails added            : {email_added}")
+    print(f"Addresses added         : {address_added}")
+    print(f"Phone numbers added     : {phone_added}")
+    print(f"Google Maps URLs added  : {gmaps_added}")
+    print(f"Opening hours added     : {hours_added}")
     print()
     for line in change_log:
         print(line)

@@ -385,94 +385,6 @@ header h1 { font-size: 1rem; font-weight: 600; flex: 1; min-width: 160px; }
 }
 .tag-add-input:focus { border-color: #10b981; }
 
-/* ── Business name link ───────────────────────────────────────── */
-.name-link { color: inherit; text-decoration: none; }
-.name-link:hover { text-decoration: underline; color: #2563eb; }
-
-/* ── Category icon grid ───────────────────────────────────────── */
-.cat-grid { display: flex; flex-wrap: wrap; gap: 5px; }
-.cat-icon-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 11px; border-radius: 20px;
-  border: 2px solid #e5e7eb; background: #fff;
-  cursor: pointer; font-size: 0.74rem; font-weight: 500;
-  transition: all 0.12s; white-space: nowrap;
-}
-.cat-icon-btn:hover { border-color: #a7f3d0; background: #f9fffe; }
-.cat-icon-btn.selected {
-  border: 2px solid #10b981; background: #f0fdf4;
-  color: #065f46; font-weight: 700;
-}
-.cat-icon-btn.was-original { border: 2px dashed #10b981; color: #059669; }
-
-/* ── Image category grid ──────────────────────────────────────── */
-.img-cat-grid { display: flex; flex-wrap: wrap; gap: 5px; }
-.img-cat-btn {
-  padding: 3px 10px; border-radius: 20px;
-  border: 2px solid #e5e7eb; background: #fff;
-  cursor: pointer; font-size: 0.71rem; font-weight: 500;
-  transition: all 0.12s;
-}
-.img-cat-btn:hover { border-color: #a7f3d0; background: #f9fffe; }
-.img-cat-btn.selected {
-  border: 2px solid #10b981; background: #f0fdf4;
-  color: #065f46; font-weight: 700;
-}
-.img-cat-btn.was-original { border: 2px dashed #10b981; color: #059669; }
-
-/* ── Tag panel ────────────────────────────────────────────────── */
-.tag-panel { display: flex; flex-direction: column; gap: 7px; }
-.tag-section-label {
-  font-size: 0.63rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.07em; color: #9ca3af;
-}
-.tag-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
-.tag-current-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 7px 3px 10px; border-radius: 20px;
-  border: 2px solid #10b981; background: #f0fdf4; color: #065f46;
-  font-size: 0.71rem; font-weight: 600; cursor: pointer; transition: all 0.12s;
-}
-.tag-current-btn:hover { border-color: #ef4444; }
-.tag-current-btn.removing {
-  border: 2px dashed #ef4444; background: #fef2f2; color: #991b1b;
-  text-decoration: line-through; opacity: 0.7;
-}
-.tag-suggest-btn {
-  padding: 3px 10px; border-radius: 20px;
-  border: 2px dashed #a7f3d0; background: #fff; color: #059669;
-  font-size: 0.71rem; font-weight: 500; cursor: pointer; transition: all 0.12s;
-}
-.tag-suggest-btn:hover { border-color: #10b981; background: #f0fdf4; }
-.tag-suggest-btn.adding {
-  border: 2px solid #10b981; background: #f0fdf4;
-  color: #065f46; font-weight: 700;
-}
-.tag-related-btn {
-  padding: 3px 10px; border-radius: 20px;
-  border: 1px solid #cbd5e1; background: #f8fafc; color: #475569;
-  font-size: 0.71rem; font-weight: 400; cursor: pointer; transition: all 0.12s;
-}
-.tag-related-btn:hover { border-color: #64748b; background: #e2e8f0; }
-.tag-related-btn.adding {
-  border: 2px solid #10b981; background: #f0fdf4;
-  color: #065f46; font-weight: 600;
-}
-.edit-label-hint { font-weight: 400; text-transform: none; font-size: 0.67rem; color: #9ca3af; }
-
-/* ── Address and contact fields ─────────────────────────────────────── */
-.edit-panel textarea {
-  border: 1.5px solid #d1d5db; border-radius: 7px; padding: 6px 10px;
-  font-size: 0.82rem; font-family: system-ui; outline: none; background: #fff;
-  resize: vertical; min-height: 60px;
-}
-.edit-panel textarea:focus { border-color: #6366f1; }
-.edit-info-link {
-  font-size: 0.71rem; color: #2563eb; text-decoration: none; margin-top: 3px;
-  display: inline-block;
-}
-.edit-info-link:hover { text-decoration: underline; }
-
 .edit-actions { display: flex; gap: 8px; }
 .btn-save {
   background: #6366f1; color: #fff;
@@ -676,11 +588,16 @@ for (const cat of CATEGORIES_DATA.categories) {
 }
 
 const CATEGORY_META = {};
+for (const cat of CATEGORIES_DATA.categories) {
+  CATEGORY_META[cat.display] = { slug: cat.slug, emoji: cat.emoji };
+}
+
 function getImageCategories(primaryCategoryDisplay) {
   const catData = CATEGORIES_BY_DISPLAY[primaryCategoryDisplay];
   if (!catData || !catData.imageCategories || catData.imageCategories.length === 0) {
     return [];
   }
+  // Flatten all types from all image category folders
   const types = new Set();
   for (const imgCat of catData.imageCategories) {
     (imgCat.types || []).forEach(t => types.add(t));
@@ -700,8 +617,6 @@ let filtered      = [];
 let activeFilters = { view: "changes", status: "all" };
 let searchQuery   = "";
 let lsKey         = "";
-let allTags       = [];  // All unique tags in the dataset
-let tagsByCategory = {};  // Tags grouped by category
 
 // ── File loading ───────────────────────────────────────────────────────────
 function bindFileInputs() {
@@ -729,24 +644,6 @@ function initAuditData(data) {
   delete auditMeta.listings;
 
   lsKey = LS_PREFIX + (data.generated_at || Date.now());
-
-  // Extract all unique tags and group by category
-  const tagSet = new Set();
-  tagsByCategory = {};
-  for (const item of allListings) {
-    const cat = item.current?.category || "";
-    if (cat && !tagsByCategory[cat]) tagsByCategory[cat] = new Set();
-    const tags = item.current?.tags || [];
-    for (const tag of tags) {
-      tagSet.add(tag);
-      if (cat) tagsByCategory[cat].add(tag);
-    }
-  }
-  allTags = Array.from(tagSet).sort();
-  // Convert sets to arrays for easier access
-  for (const cat in tagsByCategory) {
-    tagsByCategory[cat] = Array.from(tagsByCategory[cat]).sort();
-  }
 
   // Restore saved decisions if available
   const saved = localStorage.getItem(lsKey);
@@ -834,11 +731,8 @@ function renderPage() {
 
   container.innerHTML = slice.map(item => buildCard(item)).join("");
 
-  // Initialize edit state and bind events for all cards
-  slice.forEach(item => {
-    initEditState(item.id);
-    bindCardEvents(item.id);
-  });
+  // Bind events on all cards
+  slice.forEach(item => bindCardEvents(item.id));
 
   // Pagination controls
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
@@ -928,13 +822,12 @@ function buildCard(item) {
     ? `<a href="${esc(item.website)}" target="_blank" rel="noopener">🌐 ${esc(item.website.replace(/^https?:\/\//, ""))}</a>`
     : "";
   const areaLabel = item.area_slug ? item.area_slug.replace(/-/g, " ") : "";
-  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(item.name + (areaLabel ? ` ${areaLabel} bristol` : " bristol"))}`;
 
   return `
 <div class="card ${action}" id="card-${item.id}">
   <div class="card-header">
     <div class="card-title">
-      <h2><a href="${googleUrl}" target="_blank" rel="noopener" class="name-link">${esc(item.name)}</a></h2>
+      <h2>${esc(item.name)}</h2>
       <div class="meta">
         ${item.address ? `<span>${esc(truncate(item.address, 60))}</span>` : ""}
         ${areaLabel    ? `<span>${esc(areaLabel)}</span>` : ""}
@@ -974,225 +867,83 @@ function buildCard(item) {
   <div class="card-actions">
     <button class="btn-approve${approveActive}" onclick="setDecision('${item.id}', 'approved')">✓ Approve</button>
     <button class="btn-skip${skipActive}"       onclick="setDecision('${item.id}', 'skipped')">✗ Skip</button>
+    <button class="btn-edit" onclick="toggleEdit('${item.id}')">✎ Edit</button>
   </div>
 
-  <div class="edit-panel open" id="edit-${item.id}">
+  <div class="edit-panel" id="edit-${item.id}">
     ${editPanel}
   </div>
 </div>`;
 }
 
-// ── Get related tags for a category ────────────────────────────────────────
-function getRelatedTags(category, currentTags) {
-  /**
-   * Returns an array of tags commonly used in this category,
-   * excluding tags already in currentTags. Max 16 suggestions.
-   */
-  const categoryTags = tagsByCategory[category] || [];
-  const currentSet = new Set(currentTags || []);
-  const related = categoryTags.filter(t => !currentSet.has(t));
-  return related.slice(0, 16);  // Limit to 16 suggestions
-}
-
 function buildEditPanel(item, d) {
-  // Use live edit state if available, otherwise fall back to effective proposed
-  let state;
-  if (_editState[item.id]) {
-    state = _editState[item.id];
-  } else {
-    const eff  = effectiveProposed(item, d);
-    const curr = item.current;
-    state = {
-      category:           eff.category           || curr.category,
-      secondary_category: eff.secondary_category || null,
-      image_category:     eff.image_category     || null,
-      tags_add:           [...(eff.tags_add    || [])],
-      tags_remove:        [...(eff.tags_remove || [])],
-      address:            eff.address            || curr.address            || "",
-      phone:              eff.phone              || curr.phone              || "",
-      gmaps_url:          eff.gmaps_url          || curr.gmaps_url          || "",
-      opening_hours:      eff.opening_hours      || curr.opening_hours      || "",
-      description:        eff.description        || curr.description        || "",
-      email:              eff.email              || curr.email              || "",
-    };
-  }
-  const curr    = item.current;
-  const origCat = curr.category || "";
-  const selCat  = state.category || origCat;
+  const eff  = effectiveProposed(item, d);
+  const curr = item.current;
 
-  // ── Primary Category grid ─────────────────────────────────────────────
-  const primCatButtons = CATEGORIES_DATA.categories.map(cat => {
-    const isSelected = selCat === cat.display;
-    const isOrig     = cat.display === origCat && selCat !== origCat;
-    const cls = "cat-icon-btn cat-btn-primary" +
-      (isSelected ? " selected" : "") +
-      (isOrig     ? " was-original" : "");
-    return `<button class="${cls}" data-cat="${esc(cat.display)}"
-      onclick="clickPrimaryCat('${item.id}',this.dataset.cat)">${cat.emoji} ${esc(cat.display)}</button>`;
+  // Category dropdown
+  const catOptions = CATEGORIES.map(c => {
+    const isSelected = (eff.category || curr.category) === c;
+    return `<option value="${esc(c)}"${isSelected ? " selected" : ""}>${esc(c)}</option>`;
   }).join("");
 
-  // ── Secondary Category grid ───────────────────────────────────────────
-  const selSec = state.secondary_category || "";
-  const secNoneCls = "cat-icon-btn cat-btn-secondary" + (!selSec ? " selected" : "");
-  const secCatButtons = [
-    `<button class="${secNoneCls}" data-cat="" onclick="clickSecondaryCat('${item.id}','')">— None —</button>`,
-    ...CATEGORIES_DATA.categories.map(cat => {
-      const cls = "cat-icon-btn cat-btn-secondary" + (selSec === cat.display ? " selected" : "");
-      return `<button class="${cls}" data-cat="${esc(cat.display)}"
-        onclick="clickSecondaryCat('${item.id}',this.dataset.cat)">${cat.emoji} ${esc(cat.display)}</button>`;
-    })
-  ].join("");
+  // Tags to add chips
+  const tagsAddChips = (eff.tags_add || []).map(t =>
+    `<span class="tag-edit">
+       ${esc(t)}
+       <button class="remove-tag" onclick="removeAddTag('${item.id}','${esc(t)}')" title="Remove">×</button>
+     </span>`
+  ).join("");
 
-  // ── Image Category grid ───────────────────────────────────────────────
-  const imageTypes = getImageCategories(selCat);
-  const selImg     = state.image_category || "";
-  const origImg    = curr.image_category  || "";
-  const imgAutoSelected = !selImg;
-  const imgCatButtons = [
-    `<button class="img-cat-btn${imgAutoSelected ? " selected" : ""}" data-type=""
-      onclick="clickImageCat('${item.id}','')">— auto —</button>`,
-    ...imageTypes.map(t => {
-      const isSelected = selImg === t;
-      const isOrig     = t === origImg && selImg !== origImg && origImg;
-      const cls = "img-cat-btn" + (isSelected ? " selected" : "") + (isOrig ? " was-original" : "");
-      return `<button class="${cls}" data-type="${esc(t)}"
-        onclick="clickImageCat('${item.id}',this.dataset.type)">${esc(t)}</button>`;
-    })
-  ].join("");
-
-  // ── Tags ──────────────────────────────────────────────────────────────
-  const currentTags   = curr.tags || [];
-  const tagsRemove    = state.tags_remove || [];
-  const suggestedTags = (item.proposed.tags_add || []).filter(t => !currentTags.includes(t));
-  const tagsAdd       = state.tags_add || [];
-  const customTags    = tagsAdd.filter(t => !suggestedTags.includes(t));
-
-  const currentTagsHtml = currentTags.length
-    ? currentTags.map(t => {
-        const isRemoving = tagsRemove.includes(t);
-        const cls = "tag-current-btn" + (isRemoving ? " removing" : "");
-        return `<button class="${cls}" data-tag="${esc(t)}"
-          onclick="toggleRemoveTag('${item.id}',this.dataset.tag,this)">${esc(t)} <span>×</span></button>`;
-      }).join("")
-    : `<span class="no-tags">no current tags</span>`;
-
-  const suggestedHtml = suggestedTags.length
-    ? suggestedTags.map(t => {
-        const cls = "tag-suggest-btn" + (tagsAdd.includes(t) ? " adding" : "");
-        return `<button class="${cls}" data-tag="${esc(t)}"
-          onclick="toggleSuggestedTag('${item.id}',this.dataset.tag,this)">+ ${esc(t)}</button>`;
-      }).join("")
-    : "";
-
-  const customTagsHtml = customTags
-    .map(t => `<button class="tag-current-btn adding" data-tag="${esc(t)}"
-      onclick="removeCustomTag('${item.id}',this.dataset.tag,this)">${esc(t)} <span>×</span></button>`)
-    .join("");
-
-  // ── Social inputs (fallback to current if no proposed) ─────────────────
-  const eff = effectiveProposed(item, d);
-  const ig  = eff.social_instagram || curr.social_instagram || "";
-  const fb  = eff.social_facebook  || curr.social_facebook  || "";
-  const tw  = eff.social_twitter   || curr.social_twitter   || "";
+  // Social inputs
+  const ig = eff.social_instagram || "";
+  const fb = eff.social_facebook  || "";
+  const tw = eff.social_twitter   || "";
 
   return `
     <div class="edit-row">
-      <div class="edit-label">Primary Category <span class="edit-label-hint">slug: ${esc(curr.category_slug || '')}</span></div>
-      <div class="cat-grid" id="primcat-${item.id}">${primCatButtons}</div>
+      <div class="edit-label">Category</div>
+      <select id="edit-cat-${item.id}">${catOptions}</select>
     </div>
     <div class="edit-row">
-      <div class="edit-label">Secondary Category <span class="edit-label-hint">optional</span></div>
-      <div class="cat-grid" id="seccat-${item.id}">${secCatButtons}</div>
-    </div>
-    <div class="edit-row">
-      <div class="edit-label">Image Category <span class="edit-label-hint">optional</span></div>
-      <div class="img-cat-grid" id="imgcat-grid-${item.id}">${imgCatButtons}</div>
-    </div>
-    <div class="edit-row">
-      <div class="edit-label">Tags</div>
-      <div class="tag-panel" id="tag-panel-${item.id}">
-        ${currentTags.length ? `
-          <div class="tag-section-label">Current — click × to remove</div>
-          <div class="tag-row" id="tags-current-${item.id}">${currentTagsHtml}</div>` : ""}
-        ${suggestedHtml ? `
-          <div class="tag-section-label">Suggested — click to add</div>
-          <div class="tag-row" id="tags-suggested-${item.id}">${suggestedHtml}</div>` : ""}
-        <div class="tag-section-label">Custom added</div>
-        <div class="tag-row" id="tags-custom-${item.id}">${customTagsHtml}</div>
+      <div class="edit-label">Tags to Add</div>
+      <div class="tag-edit-area" id="edit-tags-add-${item.id}">
+        ${tagsAddChips}
         <input type="text" class="tag-add-input" id="edit-tag-input-${item.id}"
-          placeholder="+ type custom tag, press Enter"
-          onkeydown="onTagInputKey(event,'${item.id}')">
-        ${(() => {
-          const relatedTags = getRelatedTags(selCat, [...currentTags, ...tagsAdd]);
-          if (relatedTags.length) {
-            const relatedHtml = relatedTags.map(t =>
-              `<button class="tag-related-btn" data-tag="${esc(t)}"
-                onclick="toggleSuggestedTag('${item.id}',this.dataset.tag,this)">◌ ${esc(t)}</button>`
-            ).join("");
-            return `<div class="tag-section-label">Related tags</div>
-              <div class="tag-row" id="tags-related-${item.id}">${relatedHtml}</div>`;
-          }
-          return "";
-        })()}
+               placeholder="+ add tag"
+               onkeydown="onTagInputKey(event,'${item.id}')">
       </div>
-    </div>
-    <div class="edit-row">
-      <div class="edit-label">Description</div>
-      <textarea id="edit-desc-${item.id}" placeholder="Business description…">${esc(state.description || "")}</textarea>
-    </div>
-    <div class="edit-row">
-      <div class="edit-label">Email</div>
-      <input type="text" id="edit-email-${item.id}" value="${esc(state.email || "")}"
-        placeholder="email@example.com">
     </div>
     <div class="edit-row">
       <div class="edit-label">Instagram</div>
       <input type="text" id="edit-ig-${item.id}" value="${esc(ig)}"
-        placeholder="https://www.instagram.com/…">
+             placeholder="https://www.instagram.com/…">
     </div>
     <div class="edit-row">
       <div class="edit-label">Facebook</div>
       <input type="text" id="edit-fb-${item.id}" value="${esc(fb)}"
-        placeholder="https://www.facebook.com/…">
+             placeholder="https://www.facebook.com/…">
     </div>
     <div class="edit-row">
       <div class="edit-label">Twitter / X</div>
       <input type="text" id="edit-tw-${item.id}" value="${esc(tw)}"
-        placeholder="https://twitter.com/…">
-    </div>
-    <div class="edit-row">
-      <div class="edit-label">Address</div>
-      <textarea id="edit-addr-${item.id}" placeholder="Full address…">${esc(state.address || "")}</textarea>
-      ${item.name && item.area_slug ? `<a href="https://www.google.com/maps/search/${encodeURIComponent(item.name + " " + item.area_slug + " bristol")}" target="_blank" class="edit-info-link">🗺 View on Google Maps</a>` : ""}
-    </div>
-    <div class="edit-row">
-      <div class="edit-label">Phone</div>
-      <input type="text" id="edit-phone-${item.id}" value="${esc(state.phone || "")}"
-        placeholder="Phone number…">
-    </div>
-    <div class="edit-row">
-      <div class="edit-label">Google Maps URL <span class="edit-label-hint">paste share link</span></div>
-      <input type="text" id="edit-gmaps-${item.id}" value="${esc(state.gmaps_url || "")}"
-        placeholder="https://maps.google.com/?q=…">
-    </div>
-    <div class="edit-row">
-      <div class="edit-label">Opening Hours <span class="edit-label-hint">optional</span></div>
-      <textarea id="edit-hours-${item.id}" placeholder="Paste hours here, will be cleaned up…">${esc(state.opening_hours || "")}</textarea>
+             placeholder="https://twitter.com/…">
     </div>
     <div class="edit-actions">
-      <button class="btn-save"   onclick="saveEdit('${item.id}')">✓ Save Changes</button>
+      <button class="btn-save"   onclick="saveEdit('${item.id}')">Save & Approve</button>
+      <button class="btn-cancel" onclick="toggleEdit('${item.id}')">Cancel</button>
     </div>`;
 }
-
 
 function bindCardEvents(id) { /* events bound inline */ }
 
 // ── Decision management ────────────────────────────────────────────────────
 function setDecision(id, action) {
   if (!decisions[id]) decisions[id] = { action: "pending", overrides: null };
+  // Toggle: clicking the active button resets to pending
   decisions[id].action = (decisions[id].action === action) ? "pending" : action;
   saveDecisions();
   updateStats();
+  // Re-render just this card's state (faster than full re-render)
   refreshCard(id);
 }
 
@@ -1203,191 +954,89 @@ function toggleReasons(id) {
   arrow.textContent = open ? "▼" : "▶";
 }
 
-// Edit panel is always open - no toggle needed
 function toggleEdit(id) {
-  // Legacy function - edit panels are always visible now
-}
-
-// ── Edit State ─────────────────────────────────────────────────────────────
-const _editState = {};
-
-function initEditState(id) {
-  const item = allListings.find(x => x.id === id);
-  if (!item) return;
-  const d   = decisions[id];
-  const eff = effectiveProposed(item, d);
-  const curr = item.current;
-  _editState[id] = {
-    category:           eff.category           || curr.category,
-    secondary_category: eff.secondary_category || null,
-    image_category:     eff.image_category     || null,
-    tags_add:           [...(eff.tags_add    || [])],
-    tags_remove:        [...(eff.tags_remove || [])],
-    address:            eff.address            || curr.address            || "",
-    phone:              eff.phone              || curr.phone              || "",
-    gmaps_url:          eff.gmaps_url          || curr.gmaps_url          || "",
-    opening_hours:      eff.opening_hours      || curr.opening_hours      || "",
-    description:        eff.description        || curr.description        || "",
-    email:              eff.email              || curr.email              || "",
-    social_instagram:   eff.social_instagram   || curr.social_instagram   || "",
-    social_facebook:    eff.social_facebook    || curr.social_facebook    || "",
-    social_twitter:     eff.social_twitter     || curr.social_twitter     || "",
-  };
-}
-
-function clickPrimaryCat(id, cat) {
-  if (!_editState[id]) return;
-  const item    = allListings.find(x => x.id === id);
-  const origCat = item?.current?.category || "";
-  const prev    = _editState[id].category;
-  _editState[id].category = cat;
-  // Update primary button classes
-  document.querySelectorAll(`#edit-${id} .cat-btn-primary`).forEach(btn => {
-    const c = btn.dataset.cat;
-    btn.classList.toggle("selected",     c === cat);
-    btn.classList.toggle("was-original", c === origCat && cat !== origCat);
-  });
-  // Reset image category and rebuild its grid
-  if (prev !== cat) {
-    _editState[id].image_category = null;
-    const imageTypes = getImageCategories(cat);
-    const grid = document.getElementById("imgcat-grid-" + id);
-    if (grid) {
-      const autoBtn  = `<button class="img-cat-btn selected" data-type="" onclick="clickImageCat('${id}',this.dataset.type)">— auto —</button>`;
-      const typeBtns = imageTypes.map(t =>
-        `<button class="img-cat-btn" data-type="${esc(t)}" onclick="clickImageCat('${id}',this.dataset.type)">${esc(t)}</button>`
-      ).join("");
-      grid.innerHTML = autoBtn + typeBtns;
-    }
+  const panel = document.getElementById("edit-" + id);
+  const isOpen = panel.classList.toggle("open");
+  // Rebuild panel content when opening (to reflect latest overrides)
+  if (isOpen) {
+    const item = allListings.find(x => x.id === id);
+    const d    = decisions[id];
+    panel.innerHTML = buildEditPanel(item, d);
   }
-}
-
-function clickSecondaryCat(id, cat) {
-  if (!_editState[id]) return;
-  _editState[id].secondary_category = cat || null;
-  document.querySelectorAll(`#seccat-${id} .cat-btn-secondary`).forEach(btn => {
-    btn.classList.toggle("selected", btn.dataset.cat === cat);
-  });
-}
-
-function clickImageCat(id, type) {
-  if (!_editState[id]) return;
-  _editState[id].image_category = type || null;
-  const item    = allListings.find(x => x.id === id);
-  const origImg = item?.current?.image_category || "";
-  document.querySelectorAll(`#imgcat-grid-${id} .img-cat-btn`).forEach(btn => {
-    const t = btn.dataset.type;
-    btn.classList.toggle("selected",     t === (type || ""));
-    btn.classList.toggle("was-original", !!origImg && t === origImg && t !== (type || ""));
-  });
-}
-
-function toggleRemoveTag(id, tag, btn) {
-  if (!_editState[id]) return;
-  const arr = _editState[id].tags_remove;
-  const idx = arr.indexOf(tag);
-  if (idx === -1) { arr.push(tag);        btn.classList.add("removing"); }
-  else            { arr.splice(idx, 1);   btn.classList.remove("removing"); }
-}
-
-function toggleSuggestedTag(id, tag, btn) {
-  if (!_editState[id]) return;
-  const arr = _editState[id].tags_add;
-  const idx = arr.indexOf(tag);
-  if (idx === -1) { arr.push(tag);        btn.classList.add("adding"); }
-  else            { arr.splice(idx, 1);   btn.classList.remove("adding"); }
-}
-
-function removeCustomTag(id, tag, btn) {
-  if (!_editState[id]) return;
-  const arr = _editState[id].tags_add;
-  const idx = arr.indexOf(tag);
-  if (idx !== -1) arr.splice(idx, 1);
-  btn.remove();
 }
 
 function onTagInputKey(e, id) {
   if (e.key !== "Enter" && e.key !== ",") return;
   e.preventDefault();
-  if (!_editState[id]) return;
   const input = document.getElementById("edit-tag-input-" + id);
   const val   = input.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
   if (!val) return;
   input.value = "";
-  const item  = allListings.find(x => x.id === id);
-  const alreadyIn = [
-    ...(_editState[id].tags_add || []),
-    ...(item?.current?.tags || []),
-  ];
-  if (alreadyIn.includes(val)) return;
-  _editState[id].tags_add.push(val);
-  const customArea = document.getElementById("tags-custom-" + id);
-  if (customArea) {
-    const btn = document.createElement("button");
-    btn.className   = "tag-current-btn adding";
-    btn.dataset.tag = val;
-    btn.innerHTML   = `${esc(val)} <span>×</span>`;
-    btn.onclick     = () => removeCustomTag(id, val, btn);
-    customArea.appendChild(btn);
+  // Add to the tags-add area temporarily (stored on save)
+  const area = document.getElementById("edit-tags-add-" + id);
+  const chip = document.createElement("span");
+  chip.className = "tag-edit";
+  chip.dataset.tag = val;
+  chip.innerHTML = `${esc(val)} <button class="remove-tag" onclick="this.parentElement.remove()" title="Remove">×</button>`;
+  area.insertBefore(chip, area.lastElementChild);
+}
+
+function removeAddTag(id, tag) {
+  // Remove chip from the edit panel
+  const area  = document.getElementById("edit-tags-add-" + id);
+  if (!area) return;
+  for (const chip of area.querySelectorAll(".tag-edit")) {
+    if ((chip.dataset.tag || chip.textContent.trim().replace("×", "").trim()) === tag) {
+      chip.remove();
+      return;
+    }
   }
-}
-
-function cancelEdit(id) {
-  delete _editState[id];
-  const panel = document.getElementById("edit-" + id);
-  if (panel) panel.classList.remove("open");
-}
-
-function cleanOpeningHours(raw) {
-  if (!raw || !raw.trim()) return null;
-  const lines = raw.split(/\n/).map(l => l.trim()).filter(l => l);
-  if (!lines.length) return null;
-  return lines.join("\n");
 }
 
 function saveEdit(id) {
   const item = allListings.find(x => x.id === id);
-  if (!item || !_editState[id]) return;
-  const state   = _editState[id];
-  const curr    = item.current;
-  const catMeta = CATEGORIES_BY_DISPLAY[state.category] || {};
-  const secMeta = state.secondary_category ? (CATEGORIES_BY_DISPLAY[state.secondary_category] || {}) : {};
-  const desc = document.getElementById("edit-desc-" + id)?.value.trim() || null;
-  const email = document.getElementById("edit-email-" + id)?.value.trim() || null;
-  const ig = document.getElementById("edit-ig-" + id)?.value.trim() || null;
-  const fb = document.getElementById("edit-fb-" + id)?.value.trim() || null;
-  const tw = document.getElementById("edit-tw-" + id)?.value.trim() || null;
-  const addr = document.getElementById("edit-addr-" + id)?.value.trim() || null;
-  const phone = document.getElementById("edit-phone-" + id)?.value.trim() || null;
-  const gmaps = document.getElementById("edit-gmaps-" + id)?.value.trim() || null;
-  const hours = cleanOpeningHours(document.getElementById("edit-hours-" + id)?.value);
+  if (!item) return;
+
+  const selCat       = document.getElementById("edit-cat-" + id);
+  const selSecondary = document.getElementById("edit-secondary-" + id);
+  const selImageCat  = document.getElementById("edit-image-cat-" + id);
+  const igInput      = document.getElementById("edit-ig-" + id);
+  const fbInput      = document.getElementById("edit-fb-" + id);
+  const twInput      = document.getElementById("edit-tw-" + id);
+  const tagsArea     = document.getElementById("edit-tags-add-" + id);
+
+  // Gather tags
+  const tagsAdd = [];
+  for (const chip of tagsArea.querySelectorAll(".tag-edit")) {
+    const t = (chip.dataset.tag || chip.childNodes[0]?.textContent?.trim()).toLowerCase().trim();
+    if (t) tagsAdd.push(t);
+  }
+
+  const newCat       = selCat.value;
+  const newSecondary = selSecondary.value || null;
+  const newImageCat  = selImageCat.value || null;
+  const catMeta      = CATEGORY_META[newCat] || {};
+  const origProp     = item.proposed;
 
   if (!decisions[id]) decisions[id] = { action: "pending", overrides: null };
   decisions[id].overrides = {
-    category:                state.category !== curr.category ? state.category : null,
-    category_slug:           state.category !== curr.category ? (catMeta.slug || null) : null,
-    secondary_category:      state.secondary_category || null,
-    secondary_category_slug: state.secondary_category ? (secMeta.slug || null) : null,
-    image_category:          state.image_category || null,
-    tags_add:                state.tags_add,
-    tags_remove:             state.tags_remove,
-    description:             desc,
-    email:                   email,
-    social_instagram:        ig,
-    social_facebook:         fb,
-    social_twitter:          tw,
-    address:                 addr,
-    phone:                   phone,
-    gmaps_url:               gmaps,
-    opening_hours:           hours,
+    category:      newCat !== item.current.category ? newCat : null,
+    category_slug: newCat !== item.current.category ? (catMeta.slug || null)  : null,
+    secondary_category: newSecondary !== (item.current.secondary_category || null) ? newSecondary : null,
+    secondary_category_slug: newSecondary && newSecondary !== (item.current.secondary_category || null) ? (CATEGORY_META[newSecondary]?.slug || null) : null,
+    image_category: newImageCat !== (item.current.image_category || null) ? newImageCat : null,
+    tags_add:      tagsAdd,
+    tags_remove:   origProp.tags_remove || [],
+    social_instagram: igInput.value.trim() || null,
+    social_facebook:  fbInput.value.trim() || null,
+    social_twitter:   twInput.value.trim() || null,
   };
   decisions[id].action = "approved";
-  delete _editState[id];
+
   saveDecisions();
   updateStats();
   refreshCard(id);
 }
-
 
 function effectiveProposed(item, d) {
   if (d?.overrides) return d.overrides;
@@ -1474,15 +1123,9 @@ function exportPatches() {
         image_category:        eff.image_category        || null,
         tags_add:              eff.tags_add              || [],
         tags_remove:           eff.tags_remove           || [],
-        description:           eff.description           || null,
-        email:                 eff.email                 || null,
         social_instagram:      eff.social_instagram      || null,
         social_facebook:       eff.social_facebook       || null,
         social_twitter:        eff.social_twitter        || null,
-        address:               eff.address               || null,
-        phone:                 eff.phone                 || null,
-        gmaps_url:             eff.gmaps_url             || null,
-        opening_hours:         eff.opening_hours         || null,
       },
     });
   }
@@ -1497,7 +1140,6 @@ function exportPatches() {
   a.click();
   URL.revokeObjectURL(url);
 }
-
 
 // ── Drag & drop ────────────────────────────────────────────────────────────
 function initDragDrop() {
