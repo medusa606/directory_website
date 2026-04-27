@@ -1,0 +1,28 @@
+
+Cafes; cafe, coffee_shop, coffee, tea, bubble_tea, brunch, juice
+
+Restaurants; restaurant, fast_food, takeaway, ice_cream
+
+Food & Produce; greengrocer, produce, veg, vegetables, fruit, bakery, cake, donut, flapjacks, deli, delicatessen, sweet_shop, sweets, confectionery, candy, cheesemonger, cheese, supermarket, corner_shop, convenience_store
+
+Drinks & Brewing; pub, bar, tavern, taproom, wine_bar, wine, cocktail_bar, cellar, brewery, microbrewery, off_license, off_licence, bottle_shop, liquor_store
+
+Health & Wellbeing; spa, sauna, steam_room, massage, therapist, yoga, pilates, meditation, wellness, acupuncture, chiropractor, osteopath, pharmacy, chemist, dispensary, dentist, dental, nail_salon, nails, manicure, pedicure, hairdresser, hair_salon, salon, barbershop, barber
+
+Sports & Recreation; gym, fitness, crossfit, personal_trainer, swimming, pool, swimming_pool, golf, golf_course, climbing, climbing_wall, sports_centre, karting, go_kart, kart_racing, padel, padel_tennis, outdoor, outdoor_activities, hiking, watersports, kayak, canoeing, sailing, cycling, bike_shop, bicycle, sports_club, rugby, football_club, tennis_club, leisure_centre, leisure_center
+
+Entertainment; cinema, theatre, theater, live_music, music_venue, nightclub, club
+
+Art & Design; gallery, arts_centre, studio, photography, photographer, photography_studio, painter, artist, music_school, music_academy, music_studio, dance_studio, dance, dance_school
+
+Craft & Makers; pottery, ceramics, weaving, textiles, knitting, sewing
+
+Plants & Garden; florist, flowers, floristry, garden_centre, nursery, garden, landscaping, landscaper, groundskeeper, lawn
+
+Home & Interiors; antiques, vintage, secondhand, carpet, carpet_shop, rugs, flooring, lighting, lighting_shop, lamps, paint_supplies, paint_shop, decorating, tile_shop, tiles, tiling, sofa, sofa_shop, sofas, couch, interiors, furniture, home_goods, homeware
+
+Services; launderette, laundromat, laundrette, dry_cleaning, tailor, alterations, charity_shop, charity, thrift
+
+Accommodation; hotel, hotel_chain, hostel, guest_house, bed_and_breakfast, b&b
+
+Retail & Fashion; shoes, shoe_shop, footwear, cobbler, clothing, fashion, boutique, apparel, dress_shop, bookshop, books, stationery, book_store

@@ -233,7 +233,36 @@ WEBSITE_CATEGORY_KEYWORDS = {
         "weak": ["service", "professional", "repair"],
     },
 }
-
+# Instagram category mapping to our categories
+INSTAGRAM_CATEGORY_MAP = {
+    "restaurant": "Restaurants & Fast Food",
+    "cafe": "Cafes & Coffee",
+    "coffee": "Cafes & Coffee",
+    "bakery": "Food & Produce",
+    "bar": "Drinks & Brewing",
+    "brewery": "Drinks & Brewing",
+    "yoga": "Health & Wellbeing",
+    "fitness": "Fitness & Sports",
+    "gym": "Fitness & Sports",
+    "spa": "Health & Wellbeing",
+    "salon": "Services",
+    "barber": "Services",
+    "gallery": "Art & Design",
+    "art": "Art & Design",
+    "florist": "Plants & Garden",
+    "flower": "Plants & Garden",
+    "shop": "Services",
+    "store": "Services",
+    "boutique": "Services",
+    "furniture": "Home & Interiors",
+    "design": "Home & Interiors",
+    "craft": "Craft & Makers",
+    "maker": "Craft & Makers",
+    "artist": "Art & Design",
+    "entertainment": "Entertainment",
+    "theater": "Entertainment",
+    "theatre": "Entertainment",
+}
 # Social link patterns used during website crawl
 _SOCIAL_PATTERNS = {
     "social_instagram": (
@@ -252,6 +281,21 @@ _SOCIAL_PATTERNS = {
         r"https?://(?:www\.)?(?:twitter\.com|x\.com)/"
         r"(?!intent|share|search|i/|hashtag|home|explore|settings|tos|privacy)"
         r"([a-zA-Z0-9._]+)"
+    ),
+    "social_tiktok": (
+        r"https?://(?:www\.)?tiktok\.com/"
+        r"(?!discover|explore|foryou|trending|share)"
+        r"@?([a-zA-Z0-9._-]+)"
+    ),
+    "social_linkedin": (
+        r"https?://(?:www\.)?linkedin\.com/"
+        r"(?:company|in)/"
+        r"([a-zA-Z0-9_-]+)"
+    ),
+    "social_youtube": (
+        r"https?://(?:www\.)?(?:youtube\.com|youtu\.be)/"
+        r"(?:c|user|channel|watch\?v=)"
+        r"([a-zA-Z0-9_-]+)"
     ),
 }
 
@@ -416,12 +460,98 @@ def _extract_socials(html: str, existing: dict) -> dict[str, str]:
     return found
 
 
+def _extract_contact_info(html: str, existing: dict) -> dict[str, str]:
+    """Extract email and phone from raw HTML if not already in existing."""
+    found = {}
+    
+    # Extract email if not already present
+    if not existing.get("email", "").strip():
+        # Look for mailto: links and common email patterns
+        email_patterns = [
+            r'mailto:([a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+            r'([a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+        ]
+        for pattern in email_patterns:
+            match = re.search(pattern, html, re.IGNORECASE)
+            if match:
+                email = match.group(1).strip()
+                if email and len(email) < 120:  # sanity check
+                    found["email"] = email
+                    break
+    
+    # Extract phone if not already present
+    if not existing.get("phone", "").strip():
+        # Look for common UK phone patterns
+        phone_patterns = [
+            r'tel:(\+?44[0-9\s\-\(\)]{10,})',  # tel: links with UK numbers
+            r'(\+?44[0-9\s\-\(\)]{10,})',      # International format
+            r'(0[0-9]{1,3}[\s\-\(]?[0-9]{2,}[\s\-\)]?[0-9]{2,}[\s\-]?[0-9]{2,})',  # Local format
+        ]
+        for pattern in phone_patterns:
+            match = re.search(pattern, html, re.IGNORECASE)
+            if match:
+                phone = match.group(1).strip()
+                if phone and len(phone) < 30:  # sanity check
+                    found["phone"] = phone
+                    break
+    
+    return found
+
+
+def _extract_instagram_category(html: str) -> str | None:
+    """Extract category from Instagram profile page HTML.
+    Looks for pattern: <div dir="auto">Restaurant</div>"""
+    match = re.search(r'<div dir="auto">([^<]+)</div>', html)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+def _instagram_category_to_meridian(ig_category: str) -> str | None:
+    """Map Instagram category to Meridian category."""
+    if not ig_category:
+        return None
+    ig_lower = ig_category.lower()
+    return INSTAGRAM_CATEGORY_MAP.get(ig_lower)
+
+
+def crawl_instagram_profile(username: str) -> dict:
+    """Fetch Instagram profile page and extract category."""
+    result = {
+        "ig_category": None,
+        "ig_confidence": 0.75,
+        "ig_reasons": [],
+        "ig_crawled": False,
+    }
+
+    if not username:
+        return result
+
+    profile_url = f"https://www.instagram.com/{username}/"
+    html = _fetch(profile_url, timeout=10)
+    if not html:
+        return result
+    result["ig_crawled"] = True
+
+    ig_category = _extract_instagram_category(html)
+    if ig_category:
+        meridian_category = _instagram_category_to_meridian(ig_category)
+        if meridian_category:
+            result["ig_category"] = meridian_category
+            result["ig_reasons"].append(
+                f"Instagram profile category: '{ig_category}' → '{meridian_category}'"
+            )
+
+    return result
+
+
 def crawl_website(url: str, current_category: str, existing_socials: dict) -> dict:
     """Crawl a website; return category suggestion and any discovered social links."""
     result = {
         "crawl_category": None,
         "crawl_confidence": 0.0,
         "socials": {},
+        "contact": {},
         "crawl_reasons": [],
         "crawled": False,
     }
@@ -458,6 +588,33 @@ def crawl_website(url: str, current_category: str, existing_socials: dict) -> di
     for field, link in socials.items():
         result["crawl_reasons"].append(f"found {field}: {link}")
 
+    # Contact info (email, phone)
+    existing_contact = {
+        "email": existing_socials.get("email", ""),
+        "phone": existing_socials.get("phone", ""),
+    }
+    contact = _extract_contact_info(html, existing_contact)
+    result["contact"] = contact
+    for field, value in contact.items():
+        result["crawl_reasons"].append(f"found {field}: {value}")
+
+    # If we found Instagram, crawl the profile for category info
+    if "social_instagram" in socials:
+        ig_match = re.search(
+            r"instagram\.com/([a-zA-Z0-9._]+)",
+            socials["social_instagram"],
+            re.IGNORECASE
+        )
+        if ig_match:
+            ig_username = ig_match.group(1)
+            ig_result = crawl_instagram_profile(ig_username)
+            if ig_result["ig_category"]:
+                # If website didn't suggest a category, use Instagram's
+                if not result["crawl_category"]:
+                    result["crawl_category"] = ig_result["ig_category"]
+                    result["crawl_confidence"] = ig_result["ig_confidence"]
+                result["crawl_reasons"].extend(ig_result["ig_reasons"])
+
     return result
 
 
@@ -472,6 +629,9 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
         "social_instagram": row.get("social_instagram", ""),
         "social_facebook":  row.get("social_facebook",  ""),
         "social_twitter":   row.get("social_twitter",   ""),
+        "social_tiktok":    row.get("social_tiktok",    ""),
+        "social_linkedin":  row.get("social_linkedin",  ""),
+        "social_youtube":   row.get("social_youtube",   ""),
     }
 
     # Phase 1: name
@@ -534,6 +694,14 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
     proposed_instagram = crawl_socials.get("social_instagram")
     proposed_facebook  = crawl_socials.get("social_facebook")
     proposed_twitter   = crawl_socials.get("social_twitter")
+    proposed_tiktok    = crawl_socials.get("social_tiktok")
+    proposed_linkedin  = crawl_socials.get("social_linkedin")
+    proposed_youtube   = crawl_socials.get("social_youtube")
+
+    # Proposed contact info from crawl
+    crawl_contact = crawl_result.get("contact", {})
+    proposed_email = crawl_contact.get("email")
+    proposed_phone = crawl_contact.get("phone")
 
     # Deduplicate tags_add
     seen_add: set[str] = set()
@@ -546,6 +714,8 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
     has_changes = bool(
         deduped_add or tags_remove or proposed_category
         or proposed_instagram or proposed_facebook or proposed_twitter
+        or proposed_tiktok or proposed_linkedin or proposed_youtube
+        or proposed_email or proposed_phone
     )
 
     return {
@@ -572,6 +742,9 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
             "social_instagram": existing_socials["social_instagram"],
             "social_facebook":  existing_socials["social_facebook"],
             "social_twitter":   existing_socials["social_twitter"],
+            "social_tiktok":    existing_socials["social_tiktok"],
+            "social_linkedin":  existing_socials["social_linkedin"],
+            "social_youtube":   existing_socials["social_youtube"],
         },
         "proposed": {
             "category":      proposed_category,
@@ -579,9 +752,15 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
             "category_slug": proposed_category_slug,
             "tags_add":      deduped_add,
             "tags_remove":   tags_remove,
+            "description":   None,
+            "email":         proposed_email,
+            "phone":         proposed_phone,
             "social_instagram": proposed_instagram,
             "social_facebook":  proposed_facebook,
             "social_twitter":   proposed_twitter,
+            "social_tiktok":    proposed_tiktok,
+            "social_linkedin":  proposed_linkedin,
+            "social_youtube":   proposed_youtube,
         },
         "has_changes": has_changes,
         "confidence":  round(confidence, 2),
@@ -595,7 +774,7 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
 # Main
 # ---------------------------------------------------------------------------
 
-DEFAULT_INPUT  = os.path.join("db_backup", "listings_rows-02.csv")
+DEFAULT_INPUT  = os.path.join("db_backup", "listings_rows-04.csv")
 DEFAULT_OUTPUT = "tag_audit_results.json"
 
 

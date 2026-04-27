@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-04-26T13:09:37.771148",
+  "input_file": "db_backup/listings_rows-04.csv",
+  "total_in_csv": 3832,
+  "processed": 1,
+  "skipped_chains": 0,
+  "has_changes": 1,
+  "crawl_enabled": true,
+  "listings": [
+    {
+      "id": "030272cf-4bb2-4d4c-b11c-e5075935e4de",
+      "business_slug": "the-scrandit",
+      "name": "The Scrandit",
+      "address": "14 Christmas Steps, Bristol, BS1 5BS",
+      "area_slug": "city-centre",
+      "city_slug": "bristol",
+      "website": "https://www.instagram.com/thescrandit",
+      "status": "pending",
+      "chain_flag": "independent",
+      "current": {
+        "category": "Food & Produce",
+        "category_key": "food_produce",
+        "category_slug": "food-and-produce",
+        "tags": [
+          "restaurant"
+        ],
+        "description": "",
+        "email": "",
+        "address": "14 Christmas Steps, Bristol, BS1 5BS",
+        "phone": "",
+        "gmaps_url": "https://maps.google.com/?cid=15229790505293217394",
+        "opening_hours": "Monday: Closed; Tuesday: Closed; Wednesday: 5:30 – 10:30 PM; Thursday: 5:30 – 10:30 PM; Friday: 5:30 – 10:30 PM; Saturday: 12:30 – 10:30 PM; Sunday: Closed",
+        "social_instagram": "https://www.instagram.com/thescrandit/",
+        "social_facebook": "",
+        "social_twitter": ""
+      },
+      "proposed": {
+        "category": "Drinks & Brewing",
+        "category_key": "drinks_brewing",
+        "category_slug": "drinks-and-brewing",
+        "tags_add": [],
+        "tags_remove": [],
+        "social_instagram": null,
+        "social_facebook": null,
+        "social_twitter": null
+      },
+      "has_changes": true,
+      "confidence": 0.71,
+      "reasons": [
+        "website suggests 'Drinks & Brewing' (confidence 71%)"
+      ],
+      "source": "website_crawl",
+      "crawled": true
+    }
+  ]
+}

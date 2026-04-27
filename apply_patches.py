@@ -69,7 +69,7 @@ def main():
         rows     = list(reader)
 
     # Ensure new columns exist in fieldnames
-    for col in ["secondary_category", "secondary_category_slug", "image_category"]:
+    for col in ["secondary_category", "secondary_category_slug", "image_category", "category_slug", "ranking_tier", "status", "google_rating", "google_review_count"]:
         if col not in fieldnames:
             fieldnames.append(col)
 
@@ -78,11 +78,19 @@ def main():
     categories_changed      = 0
     secondary_categories_added = 0
     image_categories_added  = 0
+    ranking_tier_added      = 0
+    status_changed          = 0
+    category_slug_added     = 0
+    google_rating_added     = 0
+    google_review_count_added = 0
     tags_added              = 0
     tags_removed            = 0
     instagram_added         = 0
     facebook_added          = 0
     twitter_added           = 0
+    tiktok_added            = 0
+    linkedin_added          = 0
+    youtube_added           = 0
     description_added       = 0
     email_added             = 0
     address_added           = 0
@@ -142,6 +150,54 @@ def main():
                     f"  [{row.get('name')}] image_category: '{old_image_cat}' → '{new_image_cat}'"
                 )
 
+        # ── Status ────────────────────────────────────────────────────────
+        if proposed.get("status") is not None:
+            old_status = row.get("status", "")
+            new_status = proposed.get("status") or ""
+            if new_status and new_status != old_status:
+                row["status"] = new_status
+                status_changed += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] status: '{old_status}' → '{new_status}'")
+
+        # ── Category Slug ─────────────────────────────────────────────────
+        if proposed.get("category_slug") is not None:
+            old_slug = row.get("category_slug", "")
+            new_slug = proposed.get("category_slug") or ""
+            if new_slug and new_slug != old_slug:
+                row["category_slug"] = new_slug
+                category_slug_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] category_slug: '{old_slug}' → '{new_slug}'")
+
+        # ── Ranking Tier ──────────────────────────────────────────────────
+        if proposed.get("ranking_tier") is not None:
+            old_tier = row.get("ranking_tier", "")
+            new_tier = proposed.get("ranking_tier") or ""
+            if new_tier and new_tier != old_tier:
+                row["ranking_tier"] = new_tier
+                ranking_tier_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] ranking_tier: '{old_tier}' → '{new_tier}'")
+
+        # ── Google Rating ─────────────────────────────────────────────────
+        if proposed.get("google_rating") is not None:
+            new_rating = proposed.get("google_rating") or ""
+            if new_rating and not row.get("google_rating", "").strip():
+                row["google_rating"] = new_rating
+                google_rating_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] google_rating: {new_rating}")
+
+        # ── Google Review Count ───────────────────────────────────────────
+        if proposed.get("google_review_count") is not None:
+            new_count = proposed.get("google_review_count") or ""
+            if new_count and not row.get("google_review_count", "").strip():
+                row["google_review_count"] = new_count
+                google_review_count_added += 1
+                patched = True
+                change_log.append(f"  [{row.get('name')}] google_review_count: {new_count}")
+
         # ── Tags ──────────────────────────────────────────────────────────
         current_tags = parse_tags(row.get("tags", ""))
         current_set  = set(current_tags)
@@ -172,6 +228,9 @@ def main():
             ("social_instagram", "instagram_added"),
             ("social_facebook",  "facebook_added"),
             ("social_twitter",   "twitter_added"),
+            ("social_tiktok",    "tiktok_added"),
+            ("social_linkedin",  "linkedin_added"),
+            ("social_youtube",   "youtube_added"),
         ]:
             new_val = proposed.get(field, "")
             if new_val and not row.get(field, "").strip():
@@ -181,6 +240,9 @@ def main():
                 if field == "social_instagram": instagram_added += 1
                 if field == "social_facebook":  facebook_added  += 1
                 if field == "social_twitter":   twitter_added   += 1
+                if field == "social_tiktok":    tiktok_added    += 1
+                if field == "social_linkedin":  linkedin_added  += 1
+                if field == "social_youtube":   youtube_added   += 1
 
         # ── Address ───────────────────────────────────────────────────────
         if proposed.get("address") is not None:
@@ -252,11 +314,19 @@ def main():
     print(f"Categories changed      : {categories_changed}")
     print(f"Secondary categories    : {secondary_categories_added}")
     print(f"Image categories        : {image_categories_added}")
+    print(f"Status changed          : {status_changed}")
+    print(f"Category slugs added    : {category_slug_added}")
+    print(f"Ranking tiers added     : {ranking_tier_added}")
+    print(f"Google ratings added    : {google_rating_added}")
+    print(f"Google review counts    : {google_review_count_added}")
     print(f"Tags added              : {tags_added}")
     print(f"Tags removed            : {tags_removed}")
     print(f"Instagram added         : {instagram_added}")
     print(f"Facebook added          : {facebook_added}")
     print(f"Twitter added           : {twitter_added}")
+    print(f"TikTok added            : {tiktok_added}")
+    print(f"LinkedIn added          : {linkedin_added}")
+    print(f"YouTube added           : {youtube_added}")
     print(f"Descriptions added      : {description_added}")
     print(f"Emails added            : {email_added}")
     print(f"Addresses added         : {address_added}")

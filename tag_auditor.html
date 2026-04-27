@@ -347,9 +347,15 @@ header h1 { font-size: 1rem; font-weight: 600; flex: 1; min-width: 160px; }
   font-size: 0.82rem;
   outline: none;
   background: #fff;
+  transition: border-color 0.12s;
 }
 .edit-panel select:focus,
 .edit-panel input[type="text"]:focus { border-color: #6366f1; }
+.edit-panel input[type="text"]:placeholder-shown:not(:focus),
+.edit-panel textarea:placeholder-shown:not(:focus) {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
 
 /* Tag edit area */
 .tag-edit-area { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -420,6 +426,20 @@ header h1 { font-size: 1rem; font-weight: 600; flex: 1; min-width: 160px; }
 }
 .img-cat-btn.was-original { border: 2px dashed #10b981; color: #059669; }
 
+/* ── Ranking Tier buttons ─────────────────────────────────────── */
+.rank-tier-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+.rank-tier-btn {
+  padding: 4px 10px; border-radius: 18px;
+  border: 2px solid #e5e7eb; background: #fff;
+  cursor: pointer; font-size: 0.72rem; font-weight: 500;
+  transition: all 0.12s; white-space: nowrap;
+}
+.rank-tier-btn:hover { border-color: #6366f1; background: #f0f4ff; }
+.rank-tier-btn.selected {
+  border: 2px solid #6366f1; background: #e0e7ff;
+  color: #3730a3; font-weight: 700;
+}
+
 /* ── Tag panel ────────────────────────────────────────────────── */
 .tag-panel { display: flex; flex-direction: column; gap: 7px; }
 .tag-section-label {
@@ -464,7 +484,7 @@ header h1 { font-size: 1rem; font-weight: 600; flex: 1; min-width: 160px; }
 .edit-panel textarea {
   border: 1.5px solid #d1d5db; border-radius: 7px; padding: 6px 10px;
   font-size: 0.82rem; font-family: system-ui; outline: none; background: #fff;
-  resize: vertical; min-height: 60px;
+  resize: vertical; min-height: 60px; transition: border-color 0.12s;
 }
 .edit-panel textarea:focus { border-color: #6366f1; }
 .edit-info-link {
@@ -475,11 +495,16 @@ header h1 { font-size: 1rem; font-weight: 600; flex: 1; min-width: 160px; }
 
 .edit-actions { display: flex; gap: 8px; }
 .btn-save {
-  background: #6366f1; color: #fff;
-  border: none; border-radius: 7px;
+  background: #e0e7ff; color: #3730a3;
+  border: 2px solid #c7d2fe; border-radius: 7px;
   padding: 7px 18px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+  transition: all 0.15s;
 }
-.btn-save:hover { background: #4f46e5; }
+.btn-save:hover { background: #dbeafe; border-color: #93c5fd; }
+.btn-save.has-changes {
+  background: #6366f1; color: #fff; border-color: #6366f1; font-weight: 700;
+}
+.btn-save.has-changes:hover { background: #4f46e5; border-color: #4f46e5; }
 .btn-cancel {
   background: #e5e7eb; color: #555;
   border: none; border-radius: 7px;
@@ -566,6 +591,25 @@ footer {
 
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────
+const CATEGORY_SLUGS = {
+  "Cafes": ["cafe", "coffee_shop", "coffee", "tea", "bubble_tea", "brunch", "juice"],
+  "Restaurants & Fast Food": ["restaurant", "fast_food", "takeaway", "ice_cream"],
+  "Food & Produce": ["greengrocer", "produce", "veg", "vegetables", "fruit", "bakery", "cake", "donut", "flapjacks", "deli", "delicatessen", "sweet_shop", "sweets", "confectionery", "candy", "cheesemonger", "cheese", "supermarket", "corner_shop", "convenience_store"],
+  "Drinks & Brewing": ["pub", "bar", "tavern", "taproom", "wine_bar", "wine", "cocktail_bar", "cellar", "brewery", "microbrewery", "off_license", "off_licence", "bottle_shop", "liquor_store"],
+  "Health & Wellbeing": ["spa", "sauna", "steam_room", "massage", "therapist", "yoga", "pilates", "meditation", "wellness", "acupuncture", "chiropractor", "osteopath", "pharmacy", "chemist", "dispensary", "dentist", "dental", "nail_salon", "nails", "manicure", "pedicure", "hairdresser", "hair_salon", "salon", "barbershop", "barber"],
+  "Fitness & Sports": ["gym", "fitness", "crossfit", "personal_trainer", "swimming", "pool", "swimming_pool", "golf", "golf_course", "climbing", "climbing_wall", "sports_centre", "karting", "go_kart", "kart_racing", "padel", "padel_tennis", "outdoor", "outdoor_activities", "hiking", "watersports", "kayak", "canoeing", "sailing", "cycling", "bike_shop", "bicycle", "sports_club", "rugby", "football_club", "tennis_club", "leisure_centre", "leisure_center"],
+  "Entertainment": ["cinema", "theatre", "theater", "live_music", "music_venue", "nightclub", "club"],
+  "Art & Design": ["gallery", "arts_centre", "studio", "photography", "photographer", "photography_studio", "painter", "artist", "music_school", "music_academy", "music_studio", "dance_studio", "dance", "dance_school"],
+  "Craft & Makers": ["pottery", "ceramics", "weaving", "textiles", "knitting", "sewing"],
+  "Plants & Garden": ["florist", "flowers", "floristry", "garden_centre", "nursery", "garden", "landscaping", "landscaper", "groundskeeper", "lawn"],
+  "Home & Interiors": ["antiques", "vintage", "secondhand", "carpet", "carpet_shop", "rugs", "flooring", "lighting", "lighting_shop", "lamps", "paint_supplies", "paint_shop", "decorating", "tile_shop", "tiles", "tiling", "sofa", "sofa_shop", "sofas", "couch", "interiors", "furniture", "home_goods", "homeware"],
+  "Services": ["launderette", "laundromat", "laundrette", "dry_cleaning", "tailor", "alterations", "charity_shop", "charity", "thrift"],
+  "Accommodation": ["hotel", "hotel_chain", "hostel", "guest_house", "bed_and_breakfast", "b&b"],
+  "Retail & Fashion": ["shoes", "shoe_shop", "footwear", "cobbler", "clothing", "fashion", "boutique", "apparel", "dress_shop", "bookshop", "books", "stationery", "book_store"],
+};
+
+const STATUS_OPTIONS = ["pending", "closed", "active"];
+
 const CATEGORIES_DATA = {
   "categories": [
     {
@@ -594,7 +638,7 @@ const CATEGORIES_DATA = {
     },
     {
       "slug": "restaurants",
-      "display": "Restaurants",
+      "display": "Restaurants & Fast Food",
       "emoji": "🍽️",
       "imageCategories": [
         { "folder": "restaurants", "types": ["ice-cream", "restaurant"] }
@@ -662,6 +706,22 @@ const CATEGORIES_DATA = {
       "emoji": "🏠",
       "imageCategories": [
         { "folder": "home-and-interiors", "types": ["antiques", "carpet-shop", "lighting-shop", "paint-supplies", "tile-shop", "sofa-shop", "home"] }
+      ]
+    },
+    {
+      "slug": "accommodation",
+      "display": "Accommodation",
+      "emoji": "🏨",
+      "imageCategories": [
+        { "folder": "accommodation", "types": ["hotel", "hostel", "bed-and-breakfast", "guest-house"] }
+      ]
+    },
+    {
+      "slug": "retail-and-fashion",
+      "display": "Retail & Fashion",
+      "emoji": "👗",
+      "imageCategories": [
+        { "folder": "retail-and-fashion", "types": ["clothing", "shoes", "bookshop", "boutique", "stationery"] }
       ]
     }
   ]
@@ -971,10 +1031,7 @@ function buildCard(item) {
     </div>
   </div>` : ""}
 
-  <div class="card-actions">
-    <button class="btn-approve${approveActive}" onclick="setDecision('${item.id}', 'approved')">✓ Approve</button>
-    <button class="btn-skip${skipActive}"       onclick="setDecision('${item.id}', 'skipped')">✗ Skip</button>
-  </div>
+  <div class="card-actions" style="display: none;"></div>
 
   <div class="edit-panel open" id="edit-${item.id}">
     ${editPanel}
@@ -1024,11 +1081,13 @@ function buildEditPanel(item, d) {
   const primCatButtons = CATEGORIES_DATA.categories.map(cat => {
     const isSelected = selCat === cat.display;
     const isOrig     = cat.display === origCat && selCat !== origCat;
+    const isRecommended = item.proposed?.category === cat.display && cat.display !== origCat;
     const cls = "cat-icon-btn cat-btn-primary" +
       (isSelected ? " selected" : "") +
       (isOrig     ? " was-original" : "");
+    const label = esc(cat.display) + (isRecommended ? " [REC]" : "");
     return `<button class="${cls}" data-cat="${esc(cat.display)}"
-      onclick="clickPrimaryCat('${item.id}',this.dataset.cat)">${cat.emoji} ${esc(cat.display)}</button>`;
+      onclick="clickPrimaryCat('${item.id}',this.dataset.cat)" title="${isRecommended ? 'Recommended by audit' : ''}">${cat.emoji} ${label}</button>`;
   }).join("");
 
   // ── Secondary Category grid ───────────────────────────────────────────
@@ -1094,11 +1153,27 @@ function buildEditPanel(item, d) {
   const ig  = eff.social_instagram || curr.social_instagram || "";
   const fb  = eff.social_facebook  || curr.social_facebook  || "";
   const tw  = eff.social_twitter   || curr.social_twitter   || "";
+  const tk  = eff.social_tiktok    || curr.social_tiktok    || "";
+  const li  = eff.social_linkedin  || curr.social_linkedin  || "";
+  const yt  = eff.social_youtube   || curr.social_youtube   || "";
 
   return `
     <div class="edit-row">
+      <div class="edit-label">Status</div>
+      <select id="edit-status-${item.id}" value="${esc(state.status || 'pending')}" onchange="_editState['${item.id}'].status = this.value; _revertCardIfApproved('${item.id}');">
+        ${STATUS_OPTIONS.map(s => `<option value="${esc(s)}"${state.status === s ? ' selected' : ''}>${esc(s)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="edit-row">
       <div class="edit-label">Primary Category <span class="edit-label-hint">slug: ${esc(curr.category_slug || '')}</span></div>
       <div class="cat-grid" id="primcat-${item.id}">${primCatButtons}</div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Category Slug <span class="edit-label-hint">optional</span></div>
+      <select id="edit-cat-slug-${item.id}" value="${esc(state.category_slug || '')}" onchange="_editState['${item.id}'].category_slug = this.value; _revertCardIfApproved('${item.id}');">
+        <option value="">— none —</option>
+        ${(CATEGORY_SLUGS[selCat] || []).map(slug => `<option value="${esc(slug)}"${state.category_slug === slug ? ' selected' : ''}>${esc(slug)}</option>`).join("")}
+      </select>
     </div>
     <div class="edit-row">
       <div class="edit-label">Secondary Category <span class="edit-label-hint">optional</span></div>
@@ -1107,6 +1182,17 @@ function buildEditPanel(item, d) {
     <div class="edit-row">
       <div class="edit-label">Image Category <span class="edit-label-hint">optional</span></div>
       <div class="img-cat-grid" id="imgcat-grid-${item.id}">${imgCatButtons}</div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Ranking Tier <span class="edit-label-hint">optional</span></div>
+      <div class="rank-tier-buttons" id="rank-tiers-${item.id}">
+        <button class="rank-tier-btn${state.ranking_tier === 'editors-choice' ? ' selected' : ''}" data-tier="editors-choice" onclick="clickRankingTier('${item.id}','editors-choice',this)">⭐ Editors Choice</button>
+        <button class="rank-tier-btn${state.ranking_tier === 'recommended' ? ' selected' : ''}" data-tier="recommended" onclick="clickRankingTier('${item.id}','recommended',this)">👍 Recommended</button>
+        <button class="rank-tier-btn${state.ranking_tier === 'high' ? ' selected' : ''}" data-tier="high" onclick="clickRankingTier('${item.id}','high',this)">📍 High</button>
+        <button class="rank-tier-btn${state.ranking_tier === 'standard' ? ' selected' : ''}" data-tier="standard" onclick="clickRankingTier('${item.id}','standard',this)">◉ Standard</button>
+        <button class="rank-tier-btn${state.ranking_tier === 'low' ? ' selected' : ''}" data-tier="low" onclick="clickRankingTier('${item.id}','low',this)">⊘ Low</button>
+        <button class="rank-tier-btn${!state.ranking_tier ? ' selected' : ''}" data-tier="" onclick="clickRankingTier('${item.id}','',this)">— Clear —</button>
+      </div>
     </div>
     <div class="edit-row">
       <div class="edit-label">Tags</div>
@@ -1141,6 +1227,16 @@ function buildEditPanel(item, d) {
       <textarea id="edit-desc-${item.id}" placeholder="Business description…">${esc(state.description || "")}</textarea>
     </div>
     <div class="edit-row">
+      <div class="edit-label">Google Rating <span class="edit-label-hint">e.g. 4.5</span></div>
+      <input type="text" id="edit-rating-${item.id}" value="${esc(state.google_rating || "")}"
+        placeholder="4.5" onchange="_editState['${item.id}'].google_rating = this.value; _revertCardIfApproved('${item.id}');">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Google Review Count <span class="edit-label-hint">e.g. 127</span></div>
+      <input type="text" id="edit-review-count-${item.id}" value="${esc(state.google_review_count || "")}"
+        placeholder="127" onchange="_editState['${item.id}'].google_review_count = this.value; _revertCardIfApproved('${item.id}');">
+    </div>
+    <div class="edit-row">
       <div class="edit-label">Email</div>
       <input type="text" id="edit-email-${item.id}" value="${esc(state.email || "")}"
         placeholder="email@example.com">
@@ -1159,6 +1255,21 @@ function buildEditPanel(item, d) {
       <div class="edit-label">Twitter / X</div>
       <input type="text" id="edit-tw-${item.id}" value="${esc(tw)}"
         placeholder="https://twitter.com/…">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">TikTok</div>
+      <input type="text" id="edit-tk-${item.id}" value="${esc(tk)}"
+        placeholder="https://www.tiktok.com/@…">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">LinkedIn</div>
+      <input type="text" id="edit-li-${item.id}" value="${esc(li)}"
+        placeholder="https://www.linkedin.com/company/…">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">YouTube</div>
+      <input type="text" id="edit-yt-${item.id}" value="${esc(yt)}"
+        placeholder="https://www.youtube.com/…">
     </div>
     <div class="edit-row">
       <div class="edit-label">Address</div>
@@ -1180,8 +1291,32 @@ function buildEditPanel(item, d) {
       <textarea id="edit-hours-${item.id}" placeholder="Paste hours here, will be cleaned up…">${esc(state.opening_hours || "")}</textarea>
     </div>
     <div class="edit-actions">
-      <button class="btn-save"   onclick="saveEdit('${item.id}')">✓ Save Changes</button>
+      <button class="btn-save" id="save-btn-${item.id}"   onclick="saveEdit('${item.id}')">✓ Save Changes</button>
     </div>`;
+  
+  // Detect changes and style button
+  setTimeout(() => {
+    const savBtn = document.getElementById('save-btn-${item.id}');
+    if (!savBtn) return;
+    const checkChanges = () => {
+      const state = _editState['${item.id}'];
+      const curr = item.current;
+      const eff = effectiveProposed(item, d);
+      if (!state) return;
+      const hasChanges = 
+        state.category !== curr.category ||
+        state.secondary_category !== (curr.secondary_category || null) ||
+        state.image_category !== (curr.image_category || null) ||
+        state.ranking_tier !== (curr.ranking_tier || null) ||
+        state.tags_add.length > 0 ||
+        state.tags_remove.length > 0;
+      savBtn.classList.toggle('has-changes', hasChanges);
+    };
+    // Check immediately and re-check on any input
+    document.getElementById('edit-${item.id}')?.addEventListener('change', checkChanges);
+    document.getElementById('edit-${item.id}')?.addEventListener('input', checkChanges);
+    checkChanges();
+  }, 20);
 }
 
 
@@ -1218,9 +1353,14 @@ function initEditState(id) {
   const eff = effectiveProposed(item, d);
   const curr = item.current;
   _editState[id] = {
+    status:             curr.status || "pending",
     category:           eff.category           || curr.category,
+    category_slug:      eff.category_slug      || curr.category_slug || "",
     secondary_category: eff.secondary_category || null,
     image_category:     eff.image_category     || null,
+    ranking_tier:       eff.ranking_tier       || "standard",
+    google_rating:      eff.google_rating      || curr.google_rating || "",
+    google_review_count: eff.google_review_count || curr.google_review_count || "",
     tags_add:           [...(eff.tags_add    || [])],
     tags_remove:        [...(eff.tags_remove || [])],
     address:            eff.address            || curr.address            || "",
@@ -1232,6 +1372,9 @@ function initEditState(id) {
     social_instagram:   eff.social_instagram   || curr.social_instagram   || "",
     social_facebook:    eff.social_facebook    || curr.social_facebook    || "",
     social_twitter:     eff.social_twitter     || curr.social_twitter     || "",
+    social_tiktok:      eff.social_tiktok      || curr.social_tiktok      || "",
+    social_linkedin:    eff.social_linkedin    || curr.social_linkedin    || "",
+    social_youtube:     eff.social_youtube     || curr.social_youtube     || "",
   };
 }
 
@@ -1241,6 +1384,8 @@ function clickPrimaryCat(id, cat) {
   const origCat = item?.current?.category || "";
   const prev    = _editState[id].category;
   _editState[id].category = cat;
+  _editState[id].category_slug = "";  // Reset slug when category changes
+  _revertCardIfApproved(id);
   // Update primary button classes
   document.querySelectorAll(`#edit-${id} .cat-btn-primary`).forEach(btn => {
     const c = btn.dataset.cat;
@@ -1259,12 +1404,21 @@ function clickPrimaryCat(id, cat) {
       ).join("");
       grid.innerHTML = autoBtn + typeBtns;
     }
+    // Rebuild category slug dropdown
+    const slugSelect = document.getElementById("edit-cat-slug-" + id);
+    if (slugSelect) {
+      const slugs = CATEGORY_SLUGS[cat] || [];
+      slugSelect.innerHTML = `<option value="">— none —</option>` +
+        slugs.map(slug => `<option value="${esc(slug)}">${esc(slug)}</option>`).join("");
+      slugSelect.value = "";
+    }
   }
 }
 
 function clickSecondaryCat(id, cat) {
   if (!_editState[id]) return;
   _editState[id].secondary_category = cat || null;
+  _revertCardIfApproved(id);
   document.querySelectorAll(`#seccat-${id} .cat-btn-secondary`).forEach(btn => {
     btn.classList.toggle("selected", btn.dataset.cat === cat);
   });
@@ -1273,6 +1427,7 @@ function clickSecondaryCat(id, cat) {
 function clickImageCat(id, type) {
   if (!_editState[id]) return;
   _editState[id].image_category = type || null;
+  _revertCardIfApproved(id);
   const item    = allListings.find(x => x.id === id);
   const origImg = item?.current?.image_category || "";
   document.querySelectorAll(`#imgcat-grid-${id} .img-cat-btn`).forEach(btn => {
@@ -1282,8 +1437,18 @@ function clickImageCat(id, type) {
   });
 }
 
+function clickRankingTier(id, tier, btn) {
+  if (!_editState[id]) return;
+  _editState[id].ranking_tier = tier || null;
+  _revertCardIfApproved(id);
+  document.querySelectorAll(`#edit-${id} .rank-tier-btn`).forEach(b => {
+    b.classList.toggle("selected", b.dataset.tier === (tier || ""));
+  });
+}
+
 function toggleRemoveTag(id, tag, btn) {
   if (!_editState[id]) return;
+  _revertCardIfApproved(id);
   const arr = _editState[id].tags_remove;
   const idx = arr.indexOf(tag);
   if (idx === -1) { arr.push(tag);        btn.classList.add("removing"); }
@@ -1292,6 +1457,7 @@ function toggleRemoveTag(id, tag, btn) {
 
 function toggleSuggestedTag(id, tag, btn) {
   if (!_editState[id]) return;
+  _revertCardIfApproved(id);
   const arr = _editState[id].tags_add;
   const idx = arr.indexOf(tag);
   if (idx === -1) { arr.push(tag);        btn.classList.add("adding"); }
@@ -1352,23 +1518,52 @@ function saveEdit(id) {
   const curr    = item.current;
   const catMeta = CATEGORIES_BY_DISPLAY[state.category] || {};
   const secMeta = state.secondary_category ? (CATEGORIES_BY_DISPLAY[state.secondary_category] || {}) : {};
+  const status = document.getElementById("edit-status-" + id)?.value.trim() || null;
+  const catSlug = document.getElementById("edit-cat-slug-" + id)?.value.trim() || null;
+  const rating = document.getElementById("edit-rating-" + id)?.value.trim() || null;
+  const reviewCount = document.getElementById("edit-review-count-" + id)?.value.trim() || null;
   const desc = document.getElementById("edit-desc-" + id)?.value.trim() || null;
   const email = document.getElementById("edit-email-" + id)?.value.trim() || null;
   const ig = document.getElementById("edit-ig-" + id)?.value.trim() || null;
   const fb = document.getElementById("edit-fb-" + id)?.value.trim() || null;
   const tw = document.getElementById("edit-tw-" + id)?.value.trim() || null;
+  const tk = document.getElementById("edit-tk-" + id)?.value.trim() || null;
+  const li = document.getElementById("edit-li-" + id)?.value.trim() || null;
+  const yt = document.getElementById("edit-yt-" + id)?.value.trim() || null;
   const addr = document.getElementById("edit-addr-" + id)?.value.trim() || null;
   const phone = document.getElementById("edit-phone-" + id)?.value.trim() || null;
   const gmaps = document.getElementById("edit-gmaps-" + id)?.value.trim() || null;
   const hours = cleanOpeningHours(document.getElementById("edit-hours-" + id)?.value);
 
+  // Update _editState with form values so they persist on refresh
+  _editState[id].status = status;
+  _editState[id].category_slug = catSlug;
+  _editState[id].google_rating = rating;
+  _editState[id].google_review_count = reviewCount;
+  _editState[id].description = desc;
+  _editState[id].email = email;
+  _editState[id].address = addr;
+  _editState[id].phone = phone;
+  _editState[id].gmaps_url = gmaps;
+  _editState[id].opening_hours = hours;
+  _editState[id].social_instagram = ig;
+  _editState[id].social_facebook = fb;
+  _editState[id].social_twitter = tw;
+  _editState[id].social_tiktok = tk;
+  _editState[id].social_linkedin = li;
+  _editState[id].social_youtube = yt;
+
   if (!decisions[id]) decisions[id] = { action: "pending", overrides: null };
   decisions[id].overrides = {
+    status:                  status !== curr.status ? status : null,
     category:                state.category !== curr.category ? state.category : null,
-    category_slug:           state.category !== curr.category ? (catMeta.slug || null) : null,
+    category_slug:           catSlug || null,
     secondary_category:      state.secondary_category || null,
     secondary_category_slug: state.secondary_category ? (secMeta.slug || null) : null,
     image_category:          state.image_category || null,
+    ranking_tier:            state.ranking_tier || null,
+    google_rating:           rating || null,
+    google_review_count:     reviewCount || null,
     tags_add:                state.tags_add,
     tags_remove:             state.tags_remove,
     description:             desc,
@@ -1376,13 +1571,16 @@ function saveEdit(id) {
     social_instagram:        ig,
     social_facebook:         fb,
     social_twitter:          tw,
+    social_tiktok:           tk,
+    social_linkedin:         li,
+    social_youtube:          yt,
     address:                 addr,
     phone:                   phone,
     gmaps_url:               gmaps,
     opening_hours:           hours,
   };
   decisions[id].action = "approved";
-  delete _editState[id];
+  // Keep _editState[id] so changes can still be detected and edited
   saveDecisions();
   updateStats();
   refreshCard(id);
@@ -1392,6 +1590,17 @@ function saveEdit(id) {
 function effectiveProposed(item, d) {
   if (d?.overrides) return d.overrides;
   return item.proposed;
+}
+
+function _revertCardIfApproved(id) {
+  // If the card is approved but user makes edits, revert to pending
+  if (decisions[id]?.action === "approved") {
+    decisions[id].action = "pending";
+    saveDecisions();
+    updateStats();
+    const card = document.getElementById(`card-${id}`);
+    if (card) card.classList.remove("approved");
+  }
 }
 
 // ── Bulk actions ───────────────────────────────────────────────────────────
@@ -1472,15 +1681,19 @@ function exportPatches() {
         secondary_category:    eff.secondary_category    || null,
         secondary_category_slug: eff.secondary_category_slug || null,
         image_category:        eff.image_category        || null,
+        ranking_tier:          eff.ranking_tier          || null,
         tags_add:              eff.tags_add              || [],
         tags_remove:           eff.tags_remove           || [],
         description:           eff.description           || null,
         email:                 eff.email                 || null,
+        phone:                 eff.phone                 || null,
         social_instagram:      eff.social_instagram      || null,
         social_facebook:       eff.social_facebook       || null,
         social_twitter:        eff.social_twitter        || null,
+        social_tiktok:         eff.social_tiktok         || null,
+        social_linkedin:       eff.social_linkedin       || null,
+        social_youtube:        eff.social_youtube        || null,
         address:               eff.address               || null,
-        phone:                 eff.phone                 || null,
         gmaps_url:             eff.gmaps_url             || null,
         opening_hours:         eff.opening_hours         || null,
       },
