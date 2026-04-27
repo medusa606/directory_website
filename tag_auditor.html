@@ -84,6 +84,9 @@ header h1 { font-size: 1rem; font-weight: 600; flex: 1; min-width: 160px; }
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  position: sticky;
+  top: 50px;
+  z-index: 99;
 }
 .filter-group { display: flex; gap: 4px; }
 .filter-btn {
@@ -843,15 +846,17 @@ function setFilter(type, value, btn) {
 
 function onSearch() {
   searchQuery = document.getElementById("search-box").value.toLowerCase().trim();
-  currentPage = 0;
-  applyFilters();
+  currentPage = 0; // Reset to page 0 to show results from the beginning
+  applyFilters(); // This filters across ALL listings in allListings, not just current page
 }
 
 function applyFilters() {
   const { view, status } = activeFilters;
 
+  // Filter across ALL listings (not just current page)
+  // This ensures search results include matches from all pages
   filtered = allListings.filter(item => {
-    // Search
+    // Search across name, area, and address
     if (searchQuery) {
       const haystack = (item.name + " " + item.area_slug + " " + item.address).toLowerCase();
       if (!haystack.includes(searchQuery)) return false;
