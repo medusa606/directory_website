@@ -498,6 +498,75 @@ def _extract_contact_info(html: str, existing: dict) -> dict[str, str]:
     return found
 
 
+def _extract_google_rating(html: str) -> dict[str, str]:
+    """Extract Google rating and review count from website.
+    Looks for JSON-LD AggregateRating schema, OG tags, and rich snippets."""
+    result = {"google_rating": "", "google_review_count": ""}
+    
+    # Try JSON-LD AggregateRating schema
+    json_ld_matches = re.findall(r'"aggregateRating"\s*:\s*{([^}]+)}', html, re.IGNORECASE)
+    for match in json_ld_matches:
+        # Extract ratingValue
+        rating_match = re.search(r'"ratingValue"\s*:\s*"?(\d+(?:\.\d+)?)"?', match)
+        if rating_match and not result["google_rating"]:
+            result["google_rating"] = rating_match.group(1)
+        
+        # Extract reviewCount
+        count_match = re.search(r'"reviewCount"\s*:\s*"?(\d+)"?', match)
+        if count_match and not result["google_review_count"]:
+            result["google_review_count"] = count_match.group(1)
+    
+    # Try Open Graph tags
+    if not result["google_rating"]:
+        og_match = re.search(r'<meta\s+property="og:rating"\s+content="([0-9.]+)"', html, re.IGNORECASE)
+        if og_match:
+            result["google_rating"] = og_match.group(1)
+    
+    # Try common rating patterns in meta tags
+    if not result["google_rating"]:
+        meta_rating = re.search(r'<meta\s+name="rating"\s+content="([0-9.]+)"', html, re.IGNORECASE)
+        if meta_rating:
+            result["google_rating"] = meta_rating.group(1)
+    
+    return result
+
+
+def _extract_description(html: str) -> str:
+    """Extract business description from website.
+    Looks for meta description, OG description, or first paragraph of content."""
+    
+    # Try meta description
+    meta_desc = re.search(r'<meta\s+name="description"\s+content="([^"]+)"', html, re.IGNORECASE)
+    if meta_desc:
+        desc = meta_desc.group(1).strip()
+        if desc and len(desc) > 20:  # Sanity check
+            return desc[:200]  # Limit to 200 chars
+    
+    # Try OG description
+    og_desc = re.search(r'<meta\s+property="og:description"\s+content="([^"]+)"', html, re.IGNORECASE)
+    if og_desc:
+        desc = og_desc.group(1).strip()
+        if desc and len(desc) > 20:
+            return desc[:200]
+    
+    # Try extracting first paragraph from body
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        # Remove script and style elements
+        for tag in soup(["script", "style", "nav", "footer"]):
+            tag.decompose()
+        
+        # Get first paragraph or heading + text
+        for tag in soup.find_all(["p", "h1", "h2", "h3"]):
+            text = tag.get_text(strip=True)
+            if text and len(text) > 20:
+                return text[:200]
+    except Exception:
+        pass
+    
+    return ""
+
+
 def _extract_instagram_category(html: str) -> str | None:
     """Extract category from Instagram profile page HTML.
     Looks for pattern: <div dir="auto">Restaurant</div>"""
@@ -546,12 +615,15 @@ def crawl_instagram_profile(username: str) -> dict:
 
 
 def crawl_website(url: str, current_category: str, existing_socials: dict) -> dict:
-    """Crawl a website; return category suggestion and any discovered social links."""
+    """Crawl a website; return category suggestion, contact info, ratings, and description."""
     result = {
         "crawl_category": None,
         "crawl_confidence": 0.0,
         "socials": {},
         "contact": {},
+        "google_rating": "",
+        "google_review_count": "",
+        "description": "",
         "crawl_reasons": [],
         "crawled": False,
     }
@@ -597,6 +669,21 @@ def crawl_website(url: str, current_category: str, existing_socials: dict) -> di
     result["contact"] = contact
     for field, value in contact.items():
         result["crawl_reasons"].append(f"found {field}: {value}")
+
+    # Google rating and review count
+    ratings = _extract_google_rating(html)
+    result["google_rating"] = ratings.get("google_rating", "")
+    result["google_review_count"] = ratings.get("google_review_count", "")
+    if result["google_rating"]:
+        result["crawl_reasons"].append(f"found google_rating: {result['google_rating']}")
+    if result["google_review_count"]:
+        result["crawl_reasons"].append(f"found google_review_count: {result['google_review_count']}")
+
+    # Business description
+    description = _extract_description(html)
+    result["description"] = description
+    if description:
+        result["crawl_reasons"].append(f"found description: {description[:50]}...")
 
     # If we found Instagram, crawl the profile for category info
     if "social_instagram" in socials:
@@ -703,6 +790,11 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
     proposed_email = crawl_contact.get("email")
     proposed_phone = crawl_contact.get("phone")
 
+    # Proposed ratings and description from crawl
+    proposed_google_rating = crawl_result.get("google_rating") or None
+    proposed_google_review_count = crawl_result.get("google_review_count") or None
+    proposed_description = crawl_result.get("description") or None
+
     # Deduplicate tags_add
     seen_add: set[str] = set()
     deduped_add = []
@@ -716,6 +808,8 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
         or proposed_instagram or proposed_facebook or proposed_twitter
         or proposed_tiktok or proposed_linkedin or proposed_youtube
         or proposed_email or proposed_phone
+        or proposed_google_rating or proposed_google_review_count
+        or proposed_description
     )
 
     return {
@@ -729,14 +823,21 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
         "status":        row.get("status", ""),
         "chain_flag":    row.get("chain_flag", ""),
         "current": {
+            "status":        row.get("status", ""),
             "category":      row.get("category", ""),
             "category_key":  row.get("category_key", ""),
             "category_slug": row.get("category_slug", ""),
+            "secondary_category": row.get("secondary_category", ""),
+            "secondary_category_slug": row.get("secondary_category_slug", ""),
+            "image_category": row.get("image_category", ""),
+            "ranking_tier":  row.get("ranking_tier", ""),
             "tags":          current_tags,
             "description":   row.get("description", ""),
             "email":         row.get("email", ""),
             "address":       row.get("address", ""),
             "phone":         row.get("phone", ""),
+            "google_rating": row.get("google_rating", ""),
+            "google_review_count": row.get("google_review_count", ""),
             "gmaps_url":     row.get("google_maps_url", ""),
             "opening_hours": row.get("opening_hours", ""),
             "social_instagram": existing_socials["social_instagram"],
@@ -752,7 +853,9 @@ def audit_listing(row: dict, do_crawl: bool) -> dict:
             "category_slug": proposed_category_slug,
             "tags_add":      deduped_add,
             "tags_remove":   tags_remove,
-            "description":   None,
+            "description":   proposed_description,
+            "google_rating": proposed_google_rating,
+            "google_review_count": proposed_google_review_count,
             "email":         proposed_email,
             "phone":         proposed_phone,
             "social_instagram": proposed_instagram,

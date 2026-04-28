@@ -429,6 +429,20 @@ header h1 { font-size: 1rem; font-weight: 600; flex: 1; min-width: 160px; }
 }
 .img-cat-btn.was-original { border: 2px dashed #10b981; color: #059669; }
 
+/* ── Status buttons ───────────────────────────────────────────── */
+.status-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+.status-btn {
+  padding: 4px 10px; border-radius: 18px;
+  border: 2px solid #e5e7eb; background: #fff;
+  cursor: pointer; font-size: 0.72rem; font-weight: 500;
+  transition: all 0.12s; white-space: nowrap;
+}
+.status-btn:hover { border-color: #10b981; background: #f0fdf4; }
+.status-btn.selected {
+  border: 2px solid #10b981; background: #d1fae5;
+  color: #059669; font-weight: 700;
+}
+
 /* ── Ranking Tier buttons ─────────────────────────────────────── */
 .rank-tier-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
 .rank-tier-btn {
@@ -1165,9 +1179,9 @@ function buildEditPanel(item, d) {
   return `
     <div class="edit-row">
       <div class="edit-label">Status</div>
-      <select id="edit-status-${item.id}" value="${esc(state.status || 'pending')}" onchange="_editState['${item.id}'].status = this.value; _revertCardIfApproved('${item.id}');">
-        ${STATUS_OPTIONS.map(s => `<option value="${esc(s)}"${state.status === s ? ' selected' : ''}>${esc(s)}</option>`).join("")}
-      </select>
+      <div class="status-buttons" id="status-btns-${item.id}">
+        ${STATUS_OPTIONS.map(s => `<button class="status-btn${state.status === s ? ' selected' : ''}" data-status="${esc(s)}" onclick="clickStatus('${item.id}','${esc(s)}',this)">${esc(s)}</button>`).join("")}
+      </div>
     </div>
     <div class="edit-row">
       <div class="edit-label">Primary Category <span class="edit-label-hint">slug: ${esc(curr.category_slug || '')}</span></div>
@@ -1442,6 +1456,15 @@ function clickImageCat(id, type) {
   });
 }
 
+function clickStatus(id, status, btn) {
+  if (!_editState[id]) return;
+  _editState[id].status = status;
+  _revertCardIfApproved(id);
+  document.querySelectorAll(`#status-btns-${id} .status-btn`).forEach(b => {
+    b.classList.toggle("selected", b.dataset.status === status);
+  });
+}
+
 function clickRankingTier(id, tier, btn) {
   if (!_editState[id]) return;
   _editState[id].ranking_tier = tier || null;
@@ -1523,7 +1546,7 @@ function saveEdit(id) {
   const curr    = item.current;
   const catMeta = CATEGORIES_BY_DISPLAY[state.category] || {};
   const secMeta = state.secondary_category ? (CATEGORIES_BY_DISPLAY[state.secondary_category] || {}) : {};
-  const status = document.getElementById("edit-status-" + id)?.value.trim() || null;
+  const status = state.status || null; // Status now stored in _editState via clickStatus buttons
   const catSlug = document.getElementById("edit-cat-slug-" + id)?.value.trim() || null;
   const rating = document.getElementById("edit-rating-" + id)?.value.trim() || null;
   const reviewCount = document.getElementById("edit-review-count-" + id)?.value.trim() || null;
