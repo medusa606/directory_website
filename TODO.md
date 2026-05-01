@@ -1,14 +1,16 @@
 # Meridian Directory - Tag Auditor & Curator System TODO
 
 ## Phase 1: Code Review & Assessment
-- [ ] Review tag_auditor.html functionality
-- [ ] Verify listings_rows-05.csv field coverage
-- [ ] Audit audit_tags.py for additional scraping opportunities
+- [X] Review tag_auditor.html functionality
+- [X] Verify listings_rows-05.csv field coverage
+- [X] Audit audit_tags.py for additional scraping opportunities
 
 ## Phase 2: Initial Deployment
 - [ ] Deploy tag_auditor to Supabase/hosting and test
 
 ## Phase 3: Curator Features
+- [X] Add editors_notes, founders_story free text boxes
+- [X] make sub-category a pill button, not drop down
 - [ ] Implement curator authentication (sign up, login, accounts)
 - [ ] Add data reservation/allocation system for curators
 - [ ] Add save and sync changes to main database
