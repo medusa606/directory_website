@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian Curator Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #f2f4f7; color: #222; min-height: 100vh; }
+
+/* ── Login Overlay ──────────────────────────────────────────── */
+#login-screen {
+  position: fixed; inset: 0; background: #1a1a2e;
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+}
+#login-screen.hidden { display: none; }
+.login-box {
+  background: #fff; border-radius: 16px; padding: 40px;
+  width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.login-box h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; color: #1a1a2e; }
+.login-box p { font-size: 0.82rem; color: #888; margin-bottom: 24px; }
+.login-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.login-field label { font-size: 0.75rem; font-weight: 600; color: #555; }
+.login-field input {
+  border: 1.5px solid #d1d5db; border-radius: 8px; padding: 9px 12px;
+  font-size: 0.9rem; outline: none;
+}
+.login-field input:focus { border-color: #6366f1; }
+.btn-login {
+  width: 100%; background: #6366f1; color: #fff; border: none; border-radius: 8px;
+  padding: 11px; font-size: 0.9rem; font-weight: 700; cursor: pointer; margin-top: 6px;
+}
+.btn-login:hover { background: #4f46e5; }
+.btn-login:disabled { opacity: 0.6; cursor: default; }
+.login-err { color: #dc2626; font-size: 0.78rem; margin-top: 10px; min-height: 18px; }
+
+/* ── Header ─────────────────────────────────────────────────── */
+#app { display: none; }
+#app.visible { display: block; }
+header {
+  background: #1a1a2e; color: #fff; padding: 10px 20px;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 100;
+}
+header h1 { font-size: 0.95rem; font-weight: 600; flex: 1; min-width: 140px; }
+.curator-badge {
+  font-size: 0.72rem; color: #a5b4fc; background: #312e81;
+  padding: 3px 10px; border-radius: 20px; white-space: nowrap;
+}
+.header-stats { font-size: 0.75rem; color: #bbc; display: flex; gap: 12px; flex-wrap: wrap; }
+.header-stats .stat-val { color: #fff; font-weight: 700; }
+.stat-saved .stat-val { color: #6ee7b7; }
+.stat-locked .stat-val { color: #fcd34d; }
+.page-nav { display: flex; align-items: center; gap: 8px; }
+.page-nav button {
+  background: #fff2; border: 1px solid #fff3; color: #fff;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+}
+.page-nav button:hover { background: #fff3; }
+.page-nav button:disabled { opacity: 0.3; cursor: default; }
+.page-label { font-size: 0.8rem; color: #aab; min-width: 130px; text-align: center; }
+.btn-refresh {
+  background: #fff2; border: 1px solid #fff3; color: #fff;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+}
+.btn-refresh:hover { background: #fff3; }
+.btn-logout {
+  background: #dc2626; border: none; color: #fff;
+  padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.78rem; font-weight: 600;
+}
+.btn-logout:hover { background: #b91c1c; }
+
+/* ── Filter bar ─────────────────────────────────────────────── */
+.filter-bar {
+  background: #fff; border-bottom: 1px solid #e4e7ec;
+  padding: 8px 20px; display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap; position: sticky; top: 50px; z-index: 99;
+}
+.filter-group { display: flex; gap: 4px; }
+.filter-btn {
+  padding: 5px 12px; border-radius: 20px; border: 1.5px solid #d1d5db;
+  background: #fff; color: #555; font-size: 0.78rem; font-weight: 500; cursor: pointer;
+}
+.filter-btn:hover { border-color: #6366f1; color: #6366f1; }
+.filter-btn.active { background: #1a1a2e; border-color: #1a1a2e; color: #fff; }
+.filter-btn.submissions-btn.active { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+.filter-sep { width: 1px; background: #e4e7ec; margin: 0 4px; align-self: stretch; }
+.search-box {
+  margin-left: auto; padding: 5px 12px; border: 1.5px solid #d1d5db;
+  border-radius: 20px; font-size: 0.8rem; outline: none; width: 200px;
+}
+.search-box:focus { border-color: #6366f1; }
+
+/* ── Loading / Empty states ─────────────────────────────────── */
+#loading-msg {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; padding: 80px 20px; text-align: center;
+  color: #888;
+}
+#loading-msg .spinner {
+  width: 36px; height: 36px; border: 4px solid #e5e7eb;
+  border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#loading-msg h2 { font-size: 1rem; color: #444; }
+#loading-msg p { font-size: 0.82rem; max-width: 340px; line-height: 1.6; }
+
+/* ── Cards ──────────────────────────────────────────────────── */
+#cards-container { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; max-width: 900px; margin: 0 auto; }
+.card {
+  background: #fff; border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  border: 2px solid transparent; overflow: hidden;
+}
+.card.saved { border-color: #10b981; }
+.card.locked-by-other { border-color: #f59e0b; opacity: 0.85; }
+
+/* Lock banner */
+.lock-banner {
+  background: #fef3c7; border-bottom: 1px solid #fcd34d;
+  padding: 6px 16px; font-size: 0.75rem; color: #92400e;
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* Card header */
+.card-header {
+  padding: 12px 16px 8px; display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 12px; border-bottom: 1px solid #f3f4f6;
+}
+.card-title { flex: 1; }
+.card-title h2 { font-size: 0.97rem; font-weight: 700; line-height: 1.3; }
+.card-title .meta { font-size: 0.74rem; color: #888; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 8px; }
+.card-title .meta a { color: #2563eb; text-decoration: none; }
+.card-title .meta a:hover { text-decoration: underline; }
+.card-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.cat-badge {
+  font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  background: #e0e7ff; color: #3730a3; white-space: nowrap;
+}
+.status-badge {
+  font-size: 0.66rem; padding: 1px 7px; border-radius: 4px; background: #f3f4f6; color: #555;
+}
+.status-badge.active   { background: #d1fae5; color: #065f46; }
+.status-badge.closed   { background: #fee2e2; color: #991b1b; }
+.status-badge.pending  { background: #fef3c7; color: #92400e; }
+
+/* Card actions */
+.card-actions {
+  padding: 8px 16px; display: flex; gap: 8px; align-items: center;
+  border-top: 1px solid #f3f4f6;
+}
+.btn-open-edit {
+  background: #e0e7ff; color: #3730a3; border: none; border-radius: 7px;
+  padding: 6px 14px; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+}
+.btn-open-edit:hover { background: #6366f1; color: #fff; }
+.btn-open-edit:disabled { opacity: 0.4; cursor: default; }
+.save-indicator { font-size: 0.72rem; color: #10b981; margin-left: auto; }
+
+/* ── Edit panel ─────────────────────────────────────────────── */
+.edit-panel { display: none; padding: 14px 16px; border-top: 2px solid #6366f1; background: #fafafa; flex-direction: column; gap: 12px; }
+.edit-panel.open { display: flex; }
+.edit-row { display: flex; flex-direction: column; gap: 4px; }
+.edit-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6366f1; }
+.edit-label-hint { font-weight: 400; text-transform: none; font-size: 0.67rem; color: #9ca3af; }
+.edit-panel select,
+.edit-panel input[type="text"],
+.edit-panel input[type="url"] {
+  border: 1.5px solid #d1d5db; border-radius: 7px; padding: 6px 10px;
+  font-size: 0.82rem; outline: none; background: #fff;
+}
+.edit-panel select:focus,
+.edit-panel input:focus { border-color: #6366f1; }
+.edit-panel textarea {
+  border: 1.5px solid #d1d5db; border-radius: 7px; padding: 6px 10px;
+  font-size: 0.82rem; font-family: system-ui; outline: none; background: #fff;
+  resize: vertical; min-height: 60px;
+}
+.edit-panel textarea:focus { border-color: #6366f1; }
+
+/* Categories */
+.cat-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+.cat-icon-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 20px; border: 2px solid #e5e7eb; background: #fff;
+  cursor: pointer; font-size: 0.74rem; font-weight: 500; white-space: nowrap;
+}
+.cat-icon-btn:hover { border-color: #a7f3d0; }
+.cat-icon-btn.selected { border: 2px solid #10b981; background: #f0fdf4; color: #065f46; font-weight: 700; }
+
+/* Category slug / status / chain / rank tier */
+.pill-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+.pill-btn {
+  padding: 4px 10px; border-radius: 18px; border: 2px solid #e5e7eb; background: #fff;
+  cursor: pointer; font-size: 0.72rem; font-weight: 500; white-space: nowrap;
+}
+.pill-btn:hover { border-color: #6366f1; }
+.pill-btn.selected { border: 2px solid #6366f1; background: #e0e7ff; color: #3730a3; font-weight: 700; }
+.pill-btn.green-select.selected { border-color: #10b981; background: #d1fae5; color: #065f46; }
+.pill-btn.amber-select.selected { border-color: #f59e0b; background: #fef3c7; color: #92400e; }
+
+/* Tags */
+.tag-panel { display: flex; flex-direction: column; gap: 7px; }
+.tag-section-label { font-size: 0.63rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: #9ca3af; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px 3px 10px; border-radius: 20px;
+  border: 2px solid #10b981; background: #f0fdf4; color: #065f46;
+  font-size: 0.71rem; font-weight: 600; cursor: pointer;
+}
+.tag-chip:hover { border-color: #ef4444; }
+.tag-chip.removing { border: 2px dashed #ef4444; background: #fef2f2; color: #991b1b; text-decoration: line-through; opacity: 0.75; }
+.tag-add-btn {
+  padding: 3px 10px; border-radius: 20px; border: 2px dashed #a7f3d0; background: #fff; color: #059669;
+  font-size: 0.71rem; font-weight: 500; cursor: pointer;
+}
+.tag-add-btn:hover { border-color: #10b981; background: #f0fdf4; }
+.tag-add-btn.adding { border: 2px solid #10b981; background: #f0fdf4; color: #065f46; font-weight: 700; }
+.tag-add-input {
+  border: 1.5px dashed #a7f3d0; border-radius: 20px; padding: 3px 10px;
+  font-size: 0.7rem; width: 120px; outline: none; background: #f0fdf4;
+}
+.tag-add-input:focus { border-color: #10b981; }
+.no-tags { font-size: 0.72rem; color: #ccc; font-style: italic; }
+
+/* Edit actions */
+.edit-actions { display: flex; gap: 8px; align-items: center; }
+.btn-save {
+  background: #e0e7ff; color: #3730a3; border: 2px solid #c7d2fe; border-radius: 7px;
+  padding: 7px 18px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.btn-save:hover { background: #6366f1; color: #fff; border-color: #6366f1; }
+.btn-save.saving { background: #6366f1; color: #fff; border-color: #6366f1; opacity: 0.7; cursor: default; }
+.btn-save.saved-ok { background: #10b981; color: #fff; border-color: #10b981; }
+.btn-cancel {
+  background: #e5e7eb; color: #555; border: none; border-radius: 7px;
+  padding: 7px 14px; font-size: 0.8rem; cursor: pointer;
+}
+.btn-cancel:hover { background: #d1d5db; }
+.save-err { font-size: 0.75rem; color: #dc2626; margin-left: 6px; }
+
+/* ── Submissions Queue ──────────────────────────────────────── */
+.submission-card {
+  background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  border: 2px solid #fcd34d; overflow: hidden;
+}
+.submission-header {
+  padding: 12px 16px; display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; border-bottom: 1px solid #f3f4f6; background: #fffbeb;
+}
+.submission-title { flex: 1; }
+.submission-title h2 { font-size: 0.95rem; font-weight: 700; }
+.submission-title .sub-meta { font-size: 0.73rem; color: #888; margin-top: 3px; }
+.submission-badge { font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #fef3c7; color: #92400e; }
+.sub-fields { padding: 12px 16px; }
+.sub-field-row { margin-bottom: 10px; }
+.sub-field-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; margin-bottom: 3px; }
+.sub-field-current { font-size: 0.78rem; color: #aaa; background: #f9fafb; border-radius: 6px; padding: 6px 10px; white-space: pre-wrap; word-break: break-word; }
+.sub-field-proposed { font-size: 0.82rem; color: #111; background: #f0fdf4; border: 1px solid #a7f3d0; border-radius: 6px; padding: 6px 10px; white-space: pre-wrap; word-break: break-word; }
+.sub-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.sub-image { width: 120px; height: 80px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; }
+.sub-actions { padding: 10px 16px 14px; display: flex; gap: 8px; border-top: 1px solid #f3f4f6; }
+.btn-approve-sub {
+  background: #d1fae5; color: #065f46; border: 2px solid #a7f3d0; border-radius: 7px;
+  padding: 7px 16px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.btn-approve-sub:hover { background: #10b981; color: #fff; border-color: #10b981; }
+.btn-reject-sub {
+  background: #fee2e2; color: #991b1b; border: 2px solid #fca5a5; border-radius: 7px;
+  padding: 7px 16px; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.btn-reject-sub:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
+.reject-note-input {
+  flex: 1; border: 1.5px solid #d1d5db; border-radius: 7px; padding: 6px 10px;
+  font-size: 0.8rem; outline: none;
+}
+.reject-note-input:focus { border-color: #6366f1; }
+
+/* ── Claim queue ───────────────────────────────────────────── */
+.claim-card {
+  background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  border: 2px solid #a5b4fc; overflow: hidden;
+}
+.claim-header { padding: 12px 16px; background: #eff0ff; border-bottom: 1px solid #e0e7ff; }
+.claim-header h2 { font-size: 0.92rem; font-weight: 700; }
+.claim-meta { font-size: 0.73rem; color: #6366f1; margin-top: 3px; }
+.claim-listing { padding: 10px 16px; font-size: 0.82rem; color: #444; }
+.claim-actions { padding: 8px 16px 12px; display: flex; gap: 8px; border-top: 1px solid #f3f4f6; }
+.btn-approve-claim { background: #d1fae5; color: #065f46; border: 2px solid #a7f3d0; border-radius: 7px; padding: 6px 14px; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+.btn-approve-claim:hover { background: #10b981; color: #fff; border-color: #10b981; }
+.btn-reject-claim { background: #fee2e2; color: #991b1b; border: 2px solid #fca5a5; border-radius: 7px; padding: 6px 14px; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+.btn-reject-claim:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
+
+/* ── Audit panel ────────────────────────────────────────────── */
+.audit-toggle { font-size: 0.72rem; color: #6366f1; cursor: pointer; padding: 6px 16px; border-top: 1px solid #f3f4f6; display: flex; align-items: center; gap: 4px; }
+.audit-toggle:hover { color: #4f46e5; }
+.audit-list { padding: 8px 16px 12px; display: none; flex-direction: column; gap: 6px; }
+.audit-list.open { display: flex; }
+.audit-row { font-size: 0.72rem; color: #555; display: flex; gap: 8px; align-items: baseline; }
+.audit-time { color: #9ca3af; white-space: nowrap; flex-shrink: 0; }
+.audit-who { color: #6366f1; font-weight: 600; flex-shrink: 0; }
+.audit-what { color: #374151; }
+
+/* ── Toast ──────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: #fff;
+  padding: 11px 20px; border-radius: 10px; font-size: 0.82rem; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25); transform: translateY(80px); opacity: 0;
+  transition: all 0.25s; z-index: 9998;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.success { background: #065f46; }
+#toast.error   { background: #991b1b; }
+
+/* ── Misc ───────────────────────────────────────────────────── */
+footer { text-align: center; padding: 24px; font-size: 0.78rem; color: #aaa; }
+.name-link { color: inherit; text-decoration: none; }
+.name-link:hover { text-decoration: underline; color: #2563eb; }
+.img-preview { width: 80px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e7eb; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<!-- ── Login Screen ─────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🏙 Meridian Curator Portal</h1>
+    <p>Sign in with your curator account to access the editing tools.</p>
+    <div class="login-field">
+      <label for="login-email">Email</label>
+      <input type="text" id="login-email" placeholder="curator@example.com" autocomplete="email">
+    </div>
+    <div class="login-field">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn-login" id="btn-login" onclick="doLogin()">Sign In</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ── Main App ──────────────────────────────────────────────────── -->
+<div id="app">
+  <header>
+    <h1>🏙 Meridian Curator Portal</h1>
+    <span class="curator-badge" id="curator-badge">…</span>
+    <div class="header-stats" id="header-stats">
+      <span>Loaded: <span class="stat-val" id="stat-total">–</span></span>
+      <span class="stat-saved">Saved: <span class="stat-val" id="stat-saved">0</span></span>
+      <span class="stat-locked">Locks: <span class="stat-val" id="stat-locks">0</span></span>
+    </div>
+    <div class="page-nav" id="page-nav">
+      <button id="btn-prev" onclick="changePage(-1)" disabled>← Prev</button>
+      <span class="page-label" id="page-label">…</span>
+      <button id="btn-next" onclick="changePage(1)">Next →</button>
+    </div>
+    <button class="btn-refresh" onclick="refreshData()" title="Reload listings from database">⟳ Refresh</button>
+    <button class="btn-logout" onclick="doLogout()">Sign Out</button>
+  </header>
+
+  <div class="filter-bar" id="filter-bar">
+    <div class="filter-group" id="filter-view">
+      <button class="filter-btn active" data-filter="all"       onclick="setFilter('view','all',this)">All</button>
+      <button class="filter-btn"        data-filter="no-story"  onclick="setFilter('view','no-story',this)">No Story</button>
+      <button class="filter-btn"        data-filter="no-tags"   onclick="setFilter('view','no-tags',this)">No Tags</button>
+      <button class="filter-btn"        data-filter="no-image"  onclick="setFilter('view','no-image',this)">No Image</button>
+      <button class="filter-btn"        data-filter="no-desc"   onclick="setFilter('view','no-desc',this)">No Desc</button>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group" id="filter-status">
+      <button class="filter-btn active" data-filter="all"      onclick="setFilter('status','all',this)">All Status</button>
+      <button class="filter-btn"        data-filter="active"   onclick="setFilter('status','active',this)">Active</button>
+      <button class="filter-btn"        data-filter="pending"  onclick="setFilter('status','pending',this)">Pending</button>
+      <button class="filter-btn"        data-filter="closed"   onclick="setFilter('status','closed',this)">Closed</button>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <button class="filter-btn submissions-btn" data-filter="submissions" onclick="setFilter('view','submissions',this)">
+        📥 Submissions <span id="submissions-count" style="display:none;background:#ef4444;color:#fff;border-radius:20px;padding:1px 6px;font-size:0.65rem;font-weight:700;margin-left:3px;">0</span>
+      </button>
+      <button class="filter-btn submissions-btn" data-filter="claims" onclick="setFilter('view','claims',this)">
+        🏢 Claims <span id="claims-count" style="display:none;background:#6366f1;color:#fff;border-radius:20px;padding:1px 6px;font-size:0.65rem;font-weight:700;margin-left:3px;">0</span>
+      </button>
+    </div>
+    <input type="text" class="search-box" id="search-box" placeholder="Search name / area…" oninput="onSearch()">
+  </div>
+
+  <div id="loading-msg">
+    <div class="spinner"></div>
+    <h2>Loading listings…</h2>
+    <p id="loading-detail">Connecting to database…</p>
+  </div>
+
+  <div id="cards-container" style="display:none"></div>
+  <footer id="footer" style="display:none">
+    Use <strong>← / →</strong> to navigate · Edit opens a lock on the listing · Save writes directly to Supabase
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const SUPABASE_URL      = "https://ecrupbqtlhuisqmybleu.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_bG0FgHl8eFqK_VjVACRqjg_mAtuFbjg";
+const { createClient }  = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── State ───────────────────────────────────────────────────────────────────
+let currentUser    = null;
+let allListings    = [];
+let filtered       = [];
+let currentPage    = 0;
+let activeFilters  = { view: "all", status: "all" };
+let searchQuery    = "";
+let currentLocks   = {};   // { listing_id: lock_row }
+let savedCount     = 0;
+let ownerSubs      = [];   // pending owner_submissions
+let ownerClaims    = [];   // pending owner_profiles
+let _editState     = {};   // { id: { ... } }
+let lockHeartbeat  = null;
+
+const CATEGORY_SLUGS = {
+  "Cafes": ["cafe", "coffee", "tea", "bubble_tea"],
+  "Restaurants & Fast Food": ["restaurant", "fast_food", "takeaway", "ice_cream"],
+  "Food & Produce": ["greengrocer", "bakery", "deli", "confectionery", "cheesemonger", "supermarket", "convenience_store"],
+  "Drinks & Brewing": ["pub", "taproom", "wine_bar", "cocktail_bar", "off_licence", "brewery"],
+  "Health & Wellbeing": ["spa", "sauna", "massage", "therapist", "yoga", "pilates", "meditation", "wellness", "pharmacy", "dentist", "hairdresser", "barber", "nail_salon"],
+  "Fitness & Sports": ["gym", "swimming_pool", "golf_course", "climbing_wall", "padel", "bike_shop", "sports_centre", "sports_club", "watersports"],
+  "Entertainment": ["cinema", "theatre", "music_venue", "nightclub"],
+  "Art & Design": ["gallery", "arts_centre", "studio", "photography_studio", "music_school", "dance_studio"],
+  "Craft & Makers": ["pottery", "ceramics", "weaving", "textiles", "knitting", "sewing"],
+  "Plants & Garden": ["florist", "garden_centre", "nursery", "landscaping"],
+  "Home & Interiors": ["antiques", "vintage", "flooring", "lighting", "furniture", "homeware"],
+  "Services": ["launderette", "dry_cleaning", "tailor", "charity_shop"],
+  "Accommodation": ["hotel", "hostel", "guest_house", "bed_and_breakfast"],
+  "Retail & Fashion": ["footwear", "cobbler", "clothing", "boutique", "bookshop", "stationery"],
+};
+
+const CATEGORIES_DATA = [
+  { slug: "cafes",                  display: "Cafes",                  emoji: "☕" },
+  { slug: "restaurants",            display: "Restaurants & Fast Food", emoji: "🍽️" },
+  { slug: "food-and-produce",       display: "Food & Produce",          emoji: "🍎" },
+  { slug: "drinks-and-brewing",     display: "Drinks & Brewing",        emoji: "🍺" },
+  { slug: "health-and-wellbeing",   display: "Health & Wellbeing",      emoji: "🧘" },
+  { slug: "fitness-and-sports",     display: "Fitness & Sports",        emoji: "🏋️" },
+  { slug: "entertainment",          display: "Entertainment",           emoji: "🎉" },
+  { slug: "art-and-design",         display: "Art & Design",            emoji: "🎨" },
+  { slug: "craft-and-makers",       display: "Craft & Makers",          emoji: "🛠" },
+  { slug: "plants-and-garden",      display: "Plants & Garden",         emoji: "🌱" },
+  { slug: "home-and-interiors",     display: "Home & Interiors",        emoji: "🏠" },
+  { slug: "services",               display: "Services",                emoji: "🔧" },
+  { slug: "accommodation",          display: "Accommodation",           emoji: "🏨" },
+  { slug: "retail-and-fashion",     display: "Retail & Fashion",        emoji: "👗" },
+];
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    await onLogin(session.user);
+  }
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === "SIGNED_IN" && session) await onLogin(session.user);
+    if (event === "SIGNED_OUT") onLogout();
+  });
+}
+
+async function doLogin() {
+  const email    = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const errEl    = document.getElementById("login-err");
+  const btn      = document.getElementById("btn-login");
+  errEl.textContent = "";
+  if (!email || !password) { errEl.textContent = "Enter email and password."; return; }
+  btn.disabled = true;
+  btn.textContent = "Signing in…";
+  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  btn.disabled    = false;
+  btn.textContent = "Sign In";
+  if (error) { errEl.textContent = error.message; return; }
+  if (data.user?.app_metadata?.role !== "curator") {
+    await db.auth.signOut();
+    errEl.textContent = "Access denied — not a curator account.";
+    return;
+  }
+}
+
+async function onLogin(user) {
+  currentUser = user;
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("app").classList.add("visible");
+  document.getElementById("curator-badge").textContent = "✏ " + user.email;
+  await loadData();
+}
+
+async function doLogout() {
+  await releaseAllMyLocks();
+  await db.auth.signOut();
+}
+
+function onLogout() {
+  currentUser  = null;
+  allListings  = [];
+  _editState   = {};
+  currentLocks = {};
+  clearInterval(lockHeartbeat);
+  document.getElementById("login-screen").classList.remove("hidden");
+  document.getElementById("app").classList.remove("visible");
+  document.getElementById("login-password").value = "";
+}
+
+// ── Data Loading ────────────────────────────────────────────────────────────
+async function loadData() {
+  showLoadingMsg("Loading listings from database…");
+  document.getElementById("cards-container").style.display = "none";
+  document.getElementById("footer").style.display = "none";
+
+  // Purge expired locks
+  const expiry = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await db.from("listing_locks").delete().lt("locked_at", expiry);
+
+  // Load locks
+  const { data: locks } = await db.from("listing_locks").select("*");
+  currentLocks = {};
+  (locks || []).forEach(l => { currentLocks[l.listing_id] = l; });
+
+  // Load listings in batches of 1000
+  let rows = [];
+  let from = 0;
+  while (true) {
+    updateLoadingDetail(`Loading listings… (${rows.length} so far)`);
+    const { data, error } = await db
+      .from("listings")
+      .select("*")
+      .order("name")
+      .range(from, from + 999);
+    if (error) { showToast("Error loading listings: " + error.message, "error"); return; }
+    rows = rows.concat(data || []);
+    if (!data || data.length < 1000) break;
+    from += 1000;
+  }
+
+  allListings = rows;
+  _editState  = {};
+
+  // Load owner submissions and claims
+  await loadOwnerQueues();
+
+  updateLoadingDetail(`Loaded ${rows.length} listings.`);
+  hideLoadingMsg();
+  document.getElementById("stat-total").textContent = rows.length;
+  applyFilters();
+  updateStats();
+
+  // Heartbeat: refresh our own locks every 4 minutes to prevent expiry
+  clearInterval(lockHeartbeat);
+  lockHeartbeat = setInterval(refreshMyLocks, 4 * 60 * 1000);
+}
+
+async function refreshData() {
+  await releaseAllMyLocks();
+  _editState = {};
+  await loadData();
+}
+
+async function loadOwnerQueues() {
+  const { data: subs } = await db
+    .from("owner_submissions")
+    .select("*, listings(name, founders_story, logo_url, founders_image)")
+    .eq("status", "pending")
+    .order("submitted_at");
+  ownerSubs = subs || [];
+
+  const { data: claims } = await db
+    .from("owner_profiles")
+    .select("*, listings(name, address, category), auth_users:user_id(email)")
+    .eq("claim_status", "pending")
+    .order("claimed_at");
+  ownerClaims = claims || [];
+
+  // Update badge counts
+  const subCount   = ownerSubs.length;
+  const claimCount = ownerClaims.length;
+  const subEl   = document.getElementById("submissions-count");
+  const claimEl = document.getElementById("claims-count");
+  subEl.textContent   = subCount;
+  subEl.style.display = subCount   ? "" : "none";
+  claimEl.textContent = claimCount;
+  claimEl.style.display = claimCount ? "" : "none";
+}
+
+// ── Filters ─────────────────────────────────────────────────────────────────
+function setFilter(type, value, btn) {
+  activeFilters[type] = value;
+  btn.closest(".filter-group").querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  // Cross-reset: if switching to submissions/claims, clear status filter
+  if (value === "submissions" || value === "claims") {
+    activeFilters.status = "all";
+    document.querySelectorAll("#filter-status .filter-btn").forEach(b => {
+      b.classList.toggle("active", b.dataset.filter === "all");
+    });
+  }
+  currentPage = 0;
+  applyFilters();
+}
+
+function onSearch() {
+  searchQuery = document.getElementById("search-box").value.toLowerCase().trim();
+  currentPage = 0;
+  applyFilters();
+}
+
+function applyFilters() {
+  const { view, status } = activeFilters;
+
+  if (view === "submissions") {
+    filtered = ownerSubs.map(s => ({ _type: "submission", ...s }));
+    renderPage();
+    return;
+  }
+  if (view === "claims") {
+    filtered = ownerClaims.map(c => ({ _type: "claim", ...c }));
+    renderPage();
+    return;
+  }
+
+  filtered = allListings.filter(row => {
+    if (searchQuery) {
+      const hay = ((row.name || "") + " " + (row.area_slug || "") + " " + (row.address || "")).toLowerCase();
+      if (!hay.includes(searchQuery)) return false;
+    }
+    if (view === "no-story" && row.founders_story) return false;
+    if (view === "no-tags"  && row.tags && row.tags.length >= 3) return false;
+    if (view === "no-image" && row.image_url) return false;
+    if (view === "no-desc"  && row.description) return false;
+
+    if (status !== "all") {
+      const rowStatus = (row.status || "pending").toLowerCase();
+      if (rowStatus !== status) return false;
+    }
+    return true;
+  });
+
+  renderPage();
+}
+
+// ── Pagination ───────────────────────────────────────────────────────────────
+function changePage(dir) {
+  const max = Math.max(0, filtered.length - 1);
+  // Release lock for current card if we're moving away and have the lock
+  const cur = filtered[currentPage];
+  if (cur && !cur._type && currentLocks[cur.id]?.locked_by_id === currentUser?.id) {
+    if (_editState[cur.id]) {
+      releaseLock(cur.id);
+    }
+  }
+  currentPage = Math.min(Math.max(0, currentPage + dir), max);
+  renderPage();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderPage() {
+  const container = document.getElementById("cards-container");
+  const total     = filtered.length;
+  const item      = filtered[currentPage];
+
+  container.style.display = "";
+  document.getElementById("footer").style.display = "";
+
+  if (!item) {
+    container.innerHTML = `<div style="text-align:center;padding:60px;color:#888;">
+      <p style="font-size:1rem;">No listings match this filter.</p>
+    </div>`;
+    document.getElementById("page-label").textContent = "0 results";
+    document.getElementById("btn-prev").disabled = true;
+    document.getElementById("btn-next").disabled = true;
+    return;
+  }
+
+  if (item._type === "submission") {
+    container.innerHTML = buildSubmissionCard(item);
+  } else if (item._type === "claim") {
+    container.innerHTML = buildClaimCard(item);
+  } else {
+    container.innerHTML = buildListingCard(item);
+  }
+
+  document.getElementById("page-label").textContent = `${currentPage + 1} of ${total}`;
+  document.getElementById("btn-prev").disabled = currentPage === 0;
+  document.getElementById("btn-next").disabled = currentPage >= total - 1;
+}
+
+// ── Listing Card ─────────────────────────────────────────────────────────────
+function buildListingCard(row) {
+  const lock       = currentLocks[row.id];
+  const myLock     = lock && lock.locked_by_id === currentUser?.id;
+  const theirLock  = lock && !myLock;
+  const editOpen   = !!_editState[row.id];
+
+  const statusCls  = (row.status || "pending").toLowerCase();
+  const catDisplay = row.category || "—";
+  const areaLabel  = (row.area_slug || "").replace(/-/g, " ");
+
+  const lockBanner = theirLock
+    ? `<div class="lock-banner">🔒 Locked by <strong>${esc(lock.locked_by_email)}</strong> — ${timeAgo(lock.locked_at)}</div>`
+    : "";
+
+  const auditSection = `
+    <div class="audit-toggle" onclick="toggleAudit('${row.id}')">
+      <span id="audit-arrow-${row.id}">▶</span> History
+    </div>
+    <div class="audit-list" id="audit-list-${row.id}"></div>`;
+
+  return `
+<div class="card${theirLock ? ' locked-by-other' : ''}" id="card-${row.id}">
+  ${lockBanner}
+  <div class="card-header">
+    <div class="card-title">
+      <h2><a href="https://www.google.com/search?q=${encodeURIComponent((row.name||'')+ ' bristol')}"
+             target="_blank" rel="noopener" class="name-link">${esc(row.name)}</a></h2>
+      <div class="meta">
+        ${areaLabel  ? `<span>${esc(areaLabel)}</span>` : ""}
+        ${row.address ? `<span>${esc(truncate(row.address, 60))}</span>` : ""}
+        ${row.website ? `<a href="${esc(row.website)}" target="_blank" rel="noopener">🌐 ${esc(row.website.replace(/^https?:\/\//,''))}</a>` : ""}
+      </div>
+    </div>
+    <div class="card-badges">
+      <span class="cat-badge">${esc(catDisplay)}</span>
+      <span class="status-badge ${statusCls}">${esc(row.status || 'pending')}</span>
+    </div>
+  </div>
+  <div class="card-actions">
+    <button class="btn-open-edit" id="edit-btn-${row.id}"
+      onclick="openEdit('${row.id}')"
+      ${theirLock ? "disabled title='Locked by another curator'" : ""}>
+      ${editOpen ? "✎ Editing" : "✎ Edit"}
+    </button>
+    <span class="save-indicator" id="save-indicator-${row.id}" style="display:none">✓ Saved</span>
+  </div>
+  <div class="edit-panel${editOpen ? ' open' : ''}" id="edit-${row.id}">
+    ${editOpen ? buildEditPanel(row) : ""}
+  </div>
+  ${auditSection}
+</div>`;
+}
+
+// ── Edit Panel ───────────────────────────────────────────────────────────────
+function openEdit(id) {
+  const row = allListings.find(x => x.id === id);
+  if (!row) return;
+  const lock = currentLocks[id];
+  if (lock && lock.locked_by_id !== currentUser?.id) {
+    showToast("This listing is locked by " + lock.locked_by_email, "error");
+    return;
+  }
+  acquireLock(id).then(ok => {
+    if (!ok) return;
+    initEditState(id, row);
+    const panel = document.getElementById("edit-" + id);
+    const btn   = document.getElementById("edit-btn-" + id);
+    panel.innerHTML = buildEditPanel(row);
+    panel.classList.add("open");
+    if (btn) btn.textContent = "✎ Editing";
+  });
+}
+
+async function acquireLock(id) {
+  const { error } = await db.from("listing_locks").upsert({
+    listing_id:      id,
+    locked_by_email: currentUser.email,
+    locked_by_id:    currentUser.id,
+    locked_at:       new Date().toISOString(),
+  }, { onConflict: "listing_id", ignoreDuplicates: false });
+  if (error) {
+    // Check if it's locked by someone else
+    const { data: existing } = await db.from("listing_locks").select("*").eq("listing_id", id).single();
+    if (existing && existing.locked_by_id !== currentUser.id) {
+      showToast("Listing just locked by " + existing.locked_by_email, "error");
+      currentLocks[id] = existing;
+      renderPage();
+      return false;
+    }
+  }
+  currentLocks[id] = { listing_id: id, locked_by_email: currentUser.email, locked_by_id: currentUser.id, locked_at: new Date().toISOString() };
+  updateStats();
+  return true;
+}
+
+async function releaseLock(id) {
+  await db.from("listing_locks").delete().eq("listing_id", id).eq("locked_by_id", currentUser.id);
+  delete currentLocks[id];
+  delete _editState[id];
+  updateStats();
+}
+
+async function releaseAllMyLocks() {
+  if (!currentUser) return;
+  await db.from("listing_locks").delete().eq("locked_by_id", currentUser.id);
+  for (const id of Object.keys(currentLocks)) {
+    if (currentLocks[id]?.locked_by_id === currentUser.id) delete currentLocks[id];
+  }
+  _editState = {};
+}
+
+async function refreshMyLocks() {
+  const myLockIds = Object.keys(currentLocks).filter(id => currentLocks[id]?.locked_by_id === currentUser?.id);
+  if (!myLockIds.length) return;
+  for (const id of myLockIds) {
+    await db.from("listing_locks").update({ locked_at: new Date().toISOString() }).eq("listing_id", id).eq("locked_by_id", currentUser.id);
+  }
+}
+
+function cancelEdit(id) {
+  releaseLock(id).then(() => {
+    const panel = document.getElementById("edit-" + id);
+    const btn   = document.getElementById("edit-btn-" + id);
+    if (panel) { panel.innerHTML = ""; panel.classList.remove("open"); }
+    if (btn)   btn.textContent = "✎ Edit";
+  });
+}
+
+function initEditState(id, row) {
+  _editState[id] = {
+    status:             row.status             || "pending",
+    chain_flag:         row.chain_flag         || "independent",
+    category:           row.category           || "",
+    category_slug:      row.category_slug      || "",
+    secondary_category: row.secondary_category || null,
+    ranking_tier:       row.ranking_tier       || "standard",
+    tags:               [...(row.tags          || [])],
+    tags_add:           [],
+    tags_remove:        [],
+    description:        row.description        || "",
+    email:              row.email              || "",
+    phone:              row.phone              || "",
+    website:            row.website            || "",
+    address:            row.address            || "",
+    google_maps_url:    row.google_maps_url    || "",
+    opening_hours:      row.opening_hours      || "",
+    google_rating:      row.google_rating      != null ? String(row.google_rating) : "",
+    google_review_count: row.google_review_count != null ? String(row.google_review_count) : "",
+    social_instagram:   row.social_instagram   || "",
+    social_facebook:    row.social_facebook    || "",
+    social_twitter:     row.social_twitter     || "",
+    social_tiktok:      row.social_tiktok      || "",
+    social_linkedin:    row.social_linkedin    || "",
+    social_youtube:     row.social_youtube     || "",
+    editor_notes:       row.editor_notes       || "",
+    founders_story:     row.founders_story     || "",
+    founders_image:     row.founders_image     || "",
+    logo_url:           row.logo_url           || "",
+    image_url:          row.image_url          || "",
+    is_featured:        row.is_featured        || false,
+  };
+}
+
+function buildEditPanel(row) {
+  const s = _editState[row.id];
+  if (!s) return "";
+
+  // Category buttons
+  const catBtns = CATEGORIES_DATA.map(cat => {
+    const sel = s.category === cat.display;
+    return `<button class="cat-icon-btn${sel ? ' selected' : ''}" data-cat="${esc(cat.display)}"
+      onclick="_setCat('${row.id}',this.dataset.cat)">${cat.emoji} ${esc(cat.display)}</button>`;
+  }).join("");
+
+  // Category slug buttons
+  const slugBtns = [
+    `<button class="pill-btn${!s.category_slug ? ' selected green-select' : ''}" data-slug="" onclick="_setSlug('${row.id}','')">— none —</button>`,
+    ...(CATEGORY_SLUGS[s.category] || []).map(slug =>
+      `<button class="pill-btn${s.category_slug === slug ? ' selected green-select' : ''}" data-slug="${esc(slug)}"
+        onclick="_setSlug('${row.id}',this.dataset.slug)">${esc(slug)}</button>`)
+  ].join("");
+
+  // Status buttons
+  const statBtns = ["active","pending","closed"].map(v =>
+    `<button class="pill-btn${s.status === v ? ' selected green-select' : ''}" data-val="${v}"
+      onclick="_setStatus('${row.id}',this.dataset.val)">${v}</button>`
+  ).join("");
+
+  // Chain flag buttons
+  const chainBtns = [
+    { val: "independent", label: "🏪 Independent" },
+    { val: "local",       label: "🏢 Local Chain" },
+    { val: "chain",       label: "🌍 National Chain" },
+  ].map(({ val, label }) =>
+    `<button class="pill-btn${s.chain_flag === val ? ' selected' : ''}" data-val="${val}"
+      onclick="_setChain('${row.id}',this.dataset.val)">${label}</button>`
+  ).join("");
+
+  // Ranking tier buttons
+  const tierBtns = [
+    { val: "editors-choice", label: "⭐ Editors Choice" },
+    { val: "recommended",    label: "👍 Recommended" },
+    { val: "high",           label: "📍 High" },
+    { val: "standard",       label: "◉ Standard" },
+    { val: "low",            label: "⊘ Low" },
+  ].map(({ val, label }) =>
+    `<button class="pill-btn${s.ranking_tier === val ? ' selected' : ''}" data-val="${val}"
+      onclick="_setTier('${row.id}',this.dataset.val)">${label}</button>`
+  ).join("");
+
+  // Tags
+  const currentTags = s.tags.filter(t => !s.tags_remove.includes(t));
+  const tagChips = s.tags.map(t => {
+    const removing = s.tags_remove.includes(t);
+    return `<button class="tag-chip${removing ? ' removing' : ''}" data-tag="${esc(t)}"
+      onclick="_toggleRemoveTag('${row.id}',this.dataset.tag,this)">${esc(t)} <span>×</span></button>`;
+  }).join("") || '<span class="no-tags">no tags</span>';
+
+  const addedChips = s.tags_add.map(t =>
+    `<button class="tag-chip adding" data-tag="${esc(t)}"
+      onclick="_removeAddedTag('${row.id}',this.dataset.tag,this)">${esc(t)} ×</button>`
+  ).join("");
+
+  return `
+    <div class="edit-row">
+      <div class="edit-label">Status</div>
+      <div class="pill-buttons">${statBtns}</div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Chain Flag</div>
+      <div class="pill-buttons">${chainBtns}</div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Primary Category <span class="edit-label-hint">current: ${esc(row.category||'—')}</span></div>
+      <div class="cat-grid">${catBtns}</div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Category Slug</div>
+      <div class="pill-buttons" id="slug-btns-${row.id}">${slugBtns}</div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Ranking Tier</div>
+      <div class="pill-buttons">${tierBtns}</div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Tags — click × to remove, type below to add</div>
+      <div class="tag-panel">
+        <div class="tag-section-label">Current</div>
+        <div class="tag-row" id="tags-current-${row.id}">${tagChips}</div>
+        <div class="tag-section-label">Added</div>
+        <div class="tag-row" id="tags-added-${row.id}">${addedChips}</div>
+        <input type="text" class="tag-add-input" id="tag-input-${row.id}"
+          placeholder="+ type tag, press Enter"
+          onkeydown="_onTagKey(event,'${row.id}')">
+      </div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Description</div>
+      <textarea id="ed-desc-${row.id}" rows="3">${esc(s.description)}</textarea>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Editor's Notes <span class="edit-label-hint">internal, not shown publicly</span></div>
+      <textarea id="ed-notes-${row.id}" rows="2">${esc(s.editor_notes)}</textarea>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Founder's Story <span class="edit-label-hint">origin story, what makes it special</span></div>
+      <textarea id="ed-story-${row.id}" rows="4">${esc(s.founders_story)}</textarea>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Featured? <span class="edit-label-hint">shows on homepage</span></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;">
+        <input type="checkbox" id="ed-featured-${row.id}" ${s.is_featured ? "checked" : ""}>
+        Is featured listing
+      </label>
+    </div>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
+    <div class="edit-row">
+      <div class="edit-label">Email</div>
+      <input type="text" id="ed-email-${row.id}" value="${esc(s.email)}" placeholder="email@example.com">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Phone</div>
+      <input type="text" id="ed-phone-${row.id}" value="${esc(s.phone)}" placeholder="+44 ...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Website</div>
+      <input type="url" id="ed-website-${row.id}" value="${esc(s.website)}" placeholder="https://...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Address</div>
+      <textarea id="ed-addr-${row.id}" rows="2">${esc(s.address)}</textarea>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Google Maps URL</div>
+      <input type="url" id="ed-gmaps-${row.id}" value="${esc(s.google_maps_url)}" placeholder="https://maps.google.com/?q=...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Opening Hours</div>
+      <textarea id="ed-hours-${row.id}" rows="3" placeholder="Mon–Fri: 9–5...">${esc(s.opening_hours)}</textarea>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Google Rating</div>
+      <input type="text" id="ed-rating-${row.id}" value="${esc(s.google_rating)}" placeholder="4.5" style="width:100px">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Google Review Count</div>
+      <input type="text" id="ed-reviews-${row.id}" value="${esc(s.google_review_count)}" placeholder="127" style="width:100px">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Image URL</div>
+      <input type="url" id="ed-image-${row.id}" value="${esc(s.image_url)}" placeholder="https://...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Founder's Image URL</div>
+      <input type="url" id="ed-founders-img-${row.id}" value="${esc(s.founders_image)}" placeholder="https://...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Logo URL</div>
+      <input type="url" id="ed-logo-${row.id}" value="${esc(s.logo_url)}" placeholder="https://...">
+    </div>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
+    <div class="edit-row">
+      <div class="edit-label">Instagram</div>
+      <input type="url" id="ed-ig-${row.id}" value="${esc(s.social_instagram)}" placeholder="https://www.instagram.com/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Facebook</div>
+      <input type="url" id="ed-fb-${row.id}" value="${esc(s.social_facebook)}" placeholder="https://www.facebook.com/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Twitter / X</div>
+      <input type="url" id="ed-tw-${row.id}" value="${esc(s.social_twitter)}" placeholder="https://twitter.com/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">TikTok</div>
+      <input type="url" id="ed-tk-${row.id}" value="${esc(s.social_tiktok)}" placeholder="https://www.tiktok.com/@...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">LinkedIn</div>
+      <input type="url" id="ed-li-${row.id}" value="${esc(s.social_linkedin)}" placeholder="https://www.linkedin.com/company/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">YouTube</div>
+      <input type="url" id="ed-yt-${row.id}" value="${esc(s.social_youtube)}" placeholder="https://www.youtube.com/...">
+    </div>
+    <div class="edit-actions">
+      <button class="btn-save" id="save-btn-${row.id}" onclick="saveEdit('${row.id}')">💾 Save to Database</button>
+      <button class="btn-cancel" onclick="cancelEdit('${row.id}')">Cancel</button>
+      <span class="save-err" id="save-err-${row.id}"></span>
+    </div>`;
+}
+
+// ── Inline edit handlers (called from onclick) ────────────────────────────
+function _setCat(id, cat) {
+  if (!_editState[id]) return;
+  _editState[id].category = cat;
+  _editState[id].category_slug = "";
+  document.querySelectorAll(`#edit-${id} .cat-icon-btn`).forEach(b => b.classList.toggle("selected", b.dataset.cat === cat));
+  // Rebuild slug buttons
+  const slugContainer = document.getElementById("slug-btns-" + id);
+  if (slugContainer) {
+    const slugs = CATEGORY_SLUGS[cat] || [];
+    slugContainer.innerHTML = [
+      `<button class="pill-btn selected green-select" data-slug="" onclick="_setSlug('${id}','')">— none —</button>`,
+      ...slugs.map(slug =>
+        `<button class="pill-btn green-select" data-slug="${esc(slug)}" onclick="_setSlug('${id}',this.dataset.slug)">${esc(slug)}</button>`)
+    ].join("");
+  }
+}
+function _setSlug(id, slug)   { if (_editState[id]) { _editState[id].category_slug = slug; document.querySelectorAll(`#slug-btns-${id} .pill-btn`).forEach(b => b.classList.toggle("selected", b.dataset.slug === slug)); } }
+function _setStatus(id, val)  { if (_editState[id]) { _editState[id].status = val; document.querySelectorAll(`#edit-${id} .pill-btn[data-val]`).forEach(b => { if (["active","pending","closed"].includes(b.dataset.val)) b.classList.toggle("selected", b.dataset.val === val); }); } }
+function _setChain(id, val)   { if (_editState[id]) { _editState[id].chain_flag = val; document.querySelectorAll(`#edit-${id} .pill-btn[data-val]`).forEach(b => { if (["independent","local","chain"].includes(b.dataset.val)) b.classList.toggle("selected", b.dataset.val === val); }); } }
+function _setTier(id, val)    { if (_editState[id]) { _editState[id].ranking_tier = val; document.querySelectorAll(`#edit-${id} .pill-btn[data-val]`).forEach(b => { if (["editors-choice","recommended","high","standard","low"].includes(b.dataset.val)) b.classList.toggle("selected", b.dataset.val === val); }); } }
+
+function _toggleRemoveTag(id, tag, btn) {
+  if (!_editState[id]) return;
+  const arr = _editState[id].tags_remove;
+  const idx = arr.indexOf(tag);
+  if (idx === -1) { arr.push(tag);       btn.classList.add("removing"); }
+  else            { arr.splice(idx, 1);  btn.classList.remove("removing"); }
+}
+function _removeAddedTag(id, tag, btn) {
+  if (!_editState[id]) return;
+  const arr = _editState[id].tags_add;
+  const idx = arr.indexOf(tag);
+  if (idx !== -1) arr.splice(idx, 1);
+  btn.remove();
+}
+function _onTagKey(e, id) {
+  if (e.key !== "Enter" && e.key !== ",") return;
+  e.preventDefault();
+  if (!_editState[id]) return;
+  const input = document.getElementById("tag-input-" + id);
+  const val   = input.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  if (!val) return;
+  input.value = "";
+  const existing = [...(_editState[id].tags || []), ...(_editState[id].tags_add || [])];
+  if (existing.includes(val)) return;
+  _editState[id].tags_add.push(val);
+  const addedRow = document.getElementById("tags-added-" + id);
+  if (addedRow) {
+    const btn = document.createElement("button");
+    btn.className   = "tag-chip adding";
+    btn.dataset.tag = val;
+    btn.innerHTML   = `${esc(val)} ×`;
+    btn.onclick     = () => _removeAddedTag(id, val, btn);
+    addedRow.appendChild(btn);
+  }
+}
+
+// ── Save ─────────────────────────────────────────────────────────────────────
+async function saveEdit(id) {
+  const row = allListings.find(x => x.id === id);
+  if (!row || !_editState[id]) return;
+  const s   = _editState[id];
+  const btn = document.getElementById("save-btn-" + id);
+  const errEl = document.getElementById("save-err-" + id);
+  if (errEl) errEl.textContent = "";
+
+  // Collect form values
+  const gv = (elemId) => { const el = document.getElementById(elemId); return el ? el.value.trim() : null; };
+  const finalTags = [
+    ...s.tags.filter(t => !s.tags_remove.includes(t)),
+    ...s.tags_add
+  ];
+
+  const updates = {
+    status:             s.status                               || null,
+    chain_flag:         s.chain_flag                          || null,
+    category:           s.category                            || null,
+    category_slug:      s.category_slug                       || null,
+    ranking_tier:       s.ranking_tier                        || null,
+    tags:               finalTags.length ? finalTags : null,
+    description:        gv(`ed-desc-${id}`)                   || null,
+    editor_notes:       gv(`ed-notes-${id}`)                  || null,
+    founders_story:     gv(`ed-story-${id}`)                  || null,
+    is_featured:        document.getElementById(`ed-featured-${id}`)?.checked ?? false,
+    email:              gv(`ed-email-${id}`)                  || null,
+    phone:              gv(`ed-phone-${id}`)                  || null,
+    website:            gv(`ed-website-${id}`)                || null,
+    address:            gv(`ed-addr-${id}`)                   || null,
+    google_maps_url:    gv(`ed-gmaps-${id}`)                  || null,
+    opening_hours:      gv(`ed-hours-${id}`)                  || null,
+    google_rating:      parseFloatOrNull(gv(`ed-rating-${id}`)),
+    google_review_count: parseIntOrNull(gv(`ed-reviews-${id}`)),
+    image_url:          gv(`ed-image-${id}`)                  || null,
+    founders_image:     gv(`ed-founders-img-${id}`)           || null,
+    logo_url:           gv(`ed-logo-${id}`)                   || null,
+    social_instagram:   gv(`ed-ig-${id}`)                     || null,
+    social_facebook:    gv(`ed-fb-${id}`)                     || null,
+    social_twitter:     gv(`ed-tw-${id}`)                     || null,
+    social_tiktok:      gv(`ed-tk-${id}`)                     || null,
+    social_linkedin:    gv(`ed-li-${id}`)                     || null,
+    social_youtube:     gv(`ed-yt-${id}`)                     || null,
+  };
+
+  // Build diff for audit log
+  const changes = {};
+  for (const [field, newVal] of Object.entries(updates)) {
+    const oldVal = row[field];
+    const nv = newVal === "" ? null : newVal;
+    const ov = oldVal === "" ? null : oldVal;
+    if (JSON.stringify(nv) !== JSON.stringify(ov)) {
+      changes[field] = { before: ov, after: nv };
+    }
+  }
+
+  if (Object.keys(changes).length === 0) {
+    showToast("No changes to save.", "");
+    cancelEdit(id);
+    return;
+  }
+
+  if (btn) { btn.textContent = "Saving…"; btn.classList.add("saving"); btn.disabled = true; }
+
+  // Write to listings table
+  const { error: updateErr } = await db.from("listings").update(updates).eq("id", id);
+  if (updateErr) {
+    if (btn) { btn.textContent = "💾 Save to Database"; btn.classList.remove("saving"); btn.disabled = false; }
+    if (errEl) errEl.textContent = updateErr.message;
+    showToast("Save failed: " + updateErr.message, "error");
+    return;
+  }
+
+  // Write audit log
+  await db.from("curation_audit").insert({
+    listing_id:    id,
+    curator_email: currentUser.email,
+    curator_id:    currentUser.id,
+    changes:       changes,
+    source:        "curator",
+  });
+
+  // Update local listing data
+  Object.assign(row, updates);
+
+  // Release lock
+  await releaseLock(id);
+
+  savedCount++;
+  document.getElementById("stat-saved").textContent = savedCount;
+
+  // Visual feedback
+  if (btn) { btn.textContent = "✓ Saved"; btn.classList.remove("saving"); btn.classList.add("saved-ok"); btn.disabled = false; }
+  const card = document.getElementById("card-" + id);
+  if (card) card.classList.add("saved");
+  const indicator = document.getElementById("save-indicator-" + id);
+  if (indicator) { indicator.style.display = ""; }
+
+  const panel = document.getElementById("edit-" + id);
+  if (panel) { panel.innerHTML = ""; panel.classList.remove("open"); }
+  const editBtn = document.getElementById("edit-btn-" + id);
+  if (editBtn) editBtn.textContent = "✎ Edit";
+
+  showToast("Saved: " + (row.name || id), "success");
+
+  // Auto-advance after a short delay
+  setTimeout(() => {
+    if (currentPage < filtered.length - 1) changePage(1);
+  }, 800);
+}
+
+// ── Submissions Queue ─────────────────────────────────────────────────────
+function buildSubmissionCard(sub) {
+  const listing = sub.listings || {};
+  const fields  = sub.proposed_fields || {};
+  const fieldRows = Object.entries(fields).map(([field, proposed]) => {
+    const current = listing[field] || "";
+    return `
+      <div class="sub-field-row">
+        <div class="sub-field-label">${esc(field)}</div>
+        <div class="sub-field-current">${esc(current) || '<em style="color:#ccc">empty</em>'}</div>
+        <div style="font-size:0.7rem;color:#9ca3af;margin:2px 0;">↓ proposed</div>
+        <div class="sub-field-proposed">${esc(proposed)}</div>
+      </div>`;
+  }).join("");
+
+  const imageRows = (sub.proposed_image_urls || []).map(url =>
+    `<img class="sub-image" src="${esc(url)}" alt="proposed image"
+      onerror="this.style.display='none'">`
+  ).join("");
+
+  return `
+<div class="submission-card" id="sub-card-${sub.id}">
+  <div class="submission-header">
+    <div class="submission-title">
+      <h2>${esc(listing.name || sub.listing_id)}</h2>
+      <div class="sub-meta">from <strong>${esc(sub.owner_email || '—')}</strong> · ${timeAgo(sub.submitted_at)}</div>
+    </div>
+    <span class="submission-badge">Pending Review</span>
+  </div>
+  <div class="sub-fields">
+    ${fieldRows || '<p style="color:#aaa;font-size:0.8rem;">No field changes.</p>'}
+    ${imageRows ? `
+      <div class="sub-field-row">
+        <div class="sub-field-label">Proposed Images</div>
+        <div class="sub-images">${imageRows}</div>
+      </div>` : ""}
+  </div>
+  <div class="sub-actions">
+    <button class="btn-approve-sub" onclick="approveSubmission('${sub.id}','${sub.listing_id}')">✓ Approve</button>
+    <input class="reject-note-input" id="reject-note-${sub.id}" placeholder="Reason for rejection (optional)">
+    <button class="btn-reject-sub"  onclick="rejectSubmission('${sub.id}')">✗ Reject</button>
+  </div>
+</div>`;
+}
+
+async function approveSubmission(subId, listingId) {
+  const sub = ownerSubs.find(s => s.id === subId);
+  if (!sub) return;
+
+  const updates = { ...sub.proposed_fields };
+  if (sub.proposed_image_urls?.length) {
+    updates.image_url = sub.proposed_image_urls[0];
+  }
+
+  const { error: updateErr } = await db.from("listings").update(updates).eq("id", listingId);
+  if (updateErr) { showToast("Failed to apply: " + updateErr.message, "error"); return; }
+
+  const { error: statusErr } = await db.from("owner_submissions").update({
+    status: "approved",
+    reviewed_by: currentUser.email,
+    reviewed_at: new Date().toISOString(),
+  }).eq("id", subId);
+  if (statusErr) { showToast("Failed to update status: " + statusErr.message, "error"); return; }
+
+  await db.from("curation_audit").insert({
+    listing_id:    listingId,
+    curator_email: currentUser.email,
+    curator_id:    currentUser.id,
+    changes:       sub.proposed_fields || {},
+    source:        "owner_submission",
+    submission_id: subId,
+  });
+
+  // Update local data
+  const listing = allListings.find(x => x.id === listingId);
+  if (listing) Object.assign(listing, updates);
+  ownerSubs = ownerSubs.filter(s => s.id !== subId);
+  document.getElementById("sub-card-" + subId)?.remove();
+  showToast("Submission approved and applied.", "success");
+  if (!ownerSubs.length) { filtered = []; renderPage(); }
+}
+
+async function rejectSubmission(subId) {
+  const note = document.getElementById("reject-note-" + subId)?.value.trim() || null;
+  const { error } = await db.from("owner_submissions").update({
+    status: "rejected",
+    curator_notes: note,
+    reviewed_by: currentUser.email,
+    reviewed_at: new Date().toISOString(),
+  }).eq("id", subId);
+  if (error) { showToast("Failed: " + error.message, "error"); return; }
+  ownerSubs = ownerSubs.filter(s => s.id !== subId);
+  document.getElementById("sub-card-" + subId)?.remove();
+  showToast("Submission rejected.", "");
+  if (!ownerSubs.length) { filtered = []; renderPage(); }
+}
+
+// ── Claims Queue ──────────────────────────────────────────────────────────
+function buildClaimCard(claim) {
+  const listing = claim.listings || {};
+  const email   = claim.auth_users?.email || "—";
+  return `
+<div class="claim-card" id="claim-card-${claim.id}">
+  <div class="claim-header">
+    <h2>Claim from ${esc(email)}</h2>
+    <div class="claim-meta">Claimed ${timeAgo(claim.claimed_at)}</div>
+  </div>
+  <div class="claim-listing">
+    Claiming: <strong>${esc(listing.name || claim.listing_id)}</strong><br>
+    <span style="font-size:0.75rem;color:#888">${esc(listing.address || '')} · ${esc(listing.category || '')}</span>
+  </div>
+  <div class="claim-actions">
+    <button class="btn-approve-claim" onclick="approveClaim('${claim.id}')">✓ Approve Claim</button>
+    <button class="btn-reject-claim"  onclick="rejectClaim('${claim.id}')">✗ Reject</button>
+  </div>
+</div>`;
+}
+
+async function approveClaim(claimId) {
+  const { error } = await db.from("owner_profiles").update({
+    claim_status: "approved",
+    reviewed_by:  currentUser.email,
+    reviewed_at:  new Date().toISOString(),
+  }).eq("id", claimId);
+  if (error) { showToast("Failed: " + error.message, "error"); return; }
+  ownerClaims = ownerClaims.filter(c => c.id !== claimId);
+  document.getElementById("claim-card-" + claimId)?.remove();
+  showToast("Claim approved — owner can now submit changes.", "success");
+  if (!ownerClaims.length) { filtered = []; renderPage(); }
+}
+
+async function rejectClaim(claimId) {
+  const { error } = await db.from("owner_profiles").update({
+    claim_status: "rejected",
+    reviewed_by:  currentUser.email,
+    reviewed_at:  new Date().toISOString(),
+  }).eq("id", claimId);
+  if (error) { showToast("Failed: " + error.message, "error"); return; }
+  ownerClaims = ownerClaims.filter(c => c.id !== claimId);
+  document.getElementById("claim-card-" + claimId)?.remove();
+  showToast("Claim rejected.", "");
+  if (!ownerClaims.length) { filtered = []; renderPage(); }
+}
+
+// ── Audit History ─────────────────────────────────────────────────────────
+async function toggleAudit(id) {
+  const list  = document.getElementById("audit-list-" + id);
+  const arrow = document.getElementById("audit-arrow-" + id);
+  const isOpen = list.classList.toggle("open");
+  arrow.textContent = isOpen ? "▼" : "▶";
+  if (!isOpen || list.dataset.loaded) return;
+  list.innerHTML = '<span style="font-size:0.75rem;color:#aaa">Loading…</span>';
+  const { data, error } = await db.from("curation_audit")
+    .select("curator_email, changed_at, changes, source")
+    .eq("listing_id", id)
+    .order("changed_at", { ascending: false })
+    .limit(20);
+  if (error || !data?.length) {
+    list.innerHTML = '<span style="font-size:0.75rem;color:#aaa">No history found.</span>';
+    list.dataset.loaded = "1";
+    return;
+  }
+  list.innerHTML = data.map(entry => {
+    const fieldNames = Object.keys(entry.changes || {}).join(", ");
+    return `<div class="audit-row">
+      <span class="audit-time">${new Date(entry.changed_at).toLocaleString()}</span>
+      <span class="audit-who">${esc(entry.curator_email)}</span>
+      <span class="audit-what">changed: ${esc(fieldNames)}</span>
+    </div>`;
+  }).join("");
+  list.dataset.loaded = "1";
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────
+function updateStats() {
+  const myLocks = Object.values(currentLocks).filter(l => l.locked_by_id === currentUser?.id).length;
+  document.getElementById("stat-locks").textContent = myLocks;
+}
+
+// ── UI Helpers ────────────────────────────────────────────────────────────
+function showLoadingMsg(msg)    { document.getElementById("loading-msg").style.display = "flex"; document.getElementById("loading-detail").textContent = msg; }
+function updateLoadingDetail(t) { const el = document.getElementById("loading-detail"); if (el) el.textContent = t; }
+function hideLoadingMsg()       { document.getElementById("loading-msg").style.display = "none"; }
+
+let _toastTimer;
+function showToast(msg, type = "") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className   = "show " + type;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = ""; }, 3000);
+}
+
+function timeAgo(isoStr) {
+  if (!isoStr) return "";
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function esc(str) {
+  if (!str && str !== 0) return "";
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + "…" : s; }
+function parseFloatOrNull(v) { const f = parseFloat(v); return isNaN(f) ? null : f; }
+function parseIntOrNull(v)   { const i = parseInt(v, 10); return isNaN(i) ? null : i; }
+
+// ── Keyboard nav ──────────────────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  const tag = document.activeElement?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); if (!document.getElementById("btn-next")?.disabled) changePage(1); }
+  if (e.key === "ArrowLeft"  || e.key === "ArrowUp")   { e.preventDefault(); if (!document.getElementById("btn-prev")?.disabled) changePage(-1); }
+});
+
+// Release locks on tab close / refresh
+window.addEventListener("beforeunload", () => {
+  if (!currentUser) return;
+  // Synchronous beacon to release locks
+  const url = `${SUPABASE_URL}/rest/v1/listing_locks?locked_by_id=eq.${currentUser.id}`;
+  navigator.sendBeacon(url, JSON.stringify({ _method: "DELETE" }));
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

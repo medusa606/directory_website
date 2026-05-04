@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meridian — My Business Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #f2f4f7; color: #222; min-height: 100vh; }
+
+/* ── Screens ──────────────────────────────────────────────────── */
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ── Login ────────────────────────────────────────────────────── */
+#screen-login {
+  min-height: 100vh; background: #1a1a2e;
+  display: none; align-items: center; justify-content: center;
+}
+#screen-login.active { display: flex; }
+
+.auth-box {
+  background: #fff; border-radius: 16px; padding: 40px;
+  width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.auth-box .logo { font-size: 2rem; margin-bottom: 12px; text-align: center; }
+.auth-box h1 { font-size: 1.25rem; font-weight: 700; text-align: center; color: #1a1a2e; margin-bottom: 6px; }
+.auth-box .subtitle { font-size: 0.82rem; color: #888; text-align: center; margin-bottom: 24px; line-height: 1.5; }
+
+.form-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.form-field label { font-size: 0.75rem; font-weight: 600; color: #555; }
+.form-field input {
+  border: 1.5px solid #d1d5db; border-radius: 8px; padding: 10px 13px;
+  font-size: 0.9rem; outline: none; transition: border-color 0.12s;
+}
+.form-field input:focus { border-color: #6366f1; }
+
+.btn-primary {
+  width: 100%; background: #6366f1; color: #fff; border: none; border-radius: 8px;
+  padding: 12px; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: background 0.12s;
+}
+.btn-primary:hover    { background: #4f46e5; }
+.btn-primary:disabled { opacity: 0.6; cursor: default; }
+
+.auth-toggle { text-align: center; font-size: 0.8rem; color: #888; margin-top: 16px; }
+.auth-toggle a { color: #6366f1; cursor: pointer; font-weight: 600; }
+.auth-toggle a:hover { text-decoration: underline; }
+.auth-divider { text-align: center; color: #ccc; font-size: 0.75rem; margin: 12px 0; }
+.btn-magic {
+  width: 100%; background: #f3f4f6; color: #374151; border: 1.5px solid #d1d5db;
+  border-radius: 8px; padding: 11px; font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all 0.12s;
+}
+.btn-magic:hover { background: #e5e7eb; border-color: #9ca3af; }
+.auth-msg { font-size: 0.78rem; margin-top: 10px; min-height: 18px; text-align: center; }
+.auth-msg.err  { color: #dc2626; }
+.auth-msg.ok   { color: #059669; }
+
+/* ── App Shell ────────────────────────────────────────────────── */
+#app-shell { display: none; flex-direction: column; min-height: 100vh; }
+#app-shell.active { display: flex; }
+
+.top-bar {
+  background: #1a1a2e; color: #fff; padding: 12px 24px;
+  display: flex; align-items: center; gap: 14px;
+}
+.top-bar h1 { font-size: 0.95rem; font-weight: 700; flex: 1; }
+.user-badge { font-size: 0.75rem; color: #a5b4fc; background: #312e81; padding: 3px 10px; border-radius: 20px; }
+.btn-signout {
+  background: transparent; border: 1px solid #fff3; color: #fff9;
+  padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.78rem;
+}
+.btn-signout:hover { background: #fff2; color: #fff; }
+
+.main-content { flex: 1; padding: 24px; max-width: 700px; margin: 0 auto; width: 100%; }
+
+/* ── Status cards ─────────────────────────────────────────────── */
+.status-card {
+  background: #fff; border-radius: 14px; padding: 36px;
+  text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 20px;
+}
+.status-card .icon  { font-size: 3rem; margin-bottom: 14px; }
+.status-card h2     { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+.status-card p      { font-size: 0.85rem; color: #666; line-height: 1.6; max-width: 400px; margin: 0 auto; }
+.status-card .note  { font-size: 0.78rem; color: #9ca3af; margin-top: 12px; }
+
+/* ── Search ───────────────────────────────────────────────────── */
+.search-section { background: #fff; border-radius: 14px; padding: 28px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 20px; }
+.search-section h2 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+.search-section p  { font-size: 0.82rem; color: #888; margin-bottom: 16px; }
+.search-row { display: flex; gap: 8px; }
+.search-input {
+  flex: 1; border: 1.5px solid #d1d5db; border-radius: 8px; padding: 10px 13px;
+  font-size: 0.88rem; outline: none;
+}
+.search-input:focus { border-color: #6366f1; }
+.btn-search {
+  background: #6366f1; color: #fff; border: none; border-radius: 8px;
+  padding: 10px 20px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+}
+.btn-search:hover { background: #4f46e5; }
+.search-results { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.result-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; border: 1.5px solid #e5e7eb; border-radius: 9px; background: #fafafa;
+  cursor: pointer; transition: border-color 0.12s;
+}
+.result-item:hover    { border-color: #6366f1; background: #f0f4ff; }
+.result-item.selected { border-color: #10b981; background: #f0fdf4; }
+.result-name { font-size: 0.88rem; font-weight: 600; }
+.result-meta { font-size: 0.73rem; color: #888; margin-top: 1px; }
+.btn-claim {
+  background: #6366f1; color: #fff; border: none; border-radius: 7px;
+  padding: 7px 16px; font-size: 0.8rem; font-weight: 700; cursor: pointer; flex-shrink: 0;
+}
+.btn-claim:hover { background: #4f46e5; }
+
+/* ── Listing view (read-only) ─────────────────────────────────── */
+.listing-panel { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 20px; }
+.listing-panel h2 { font-size: 1rem; font-weight: 700; margin-bottom: 14px; color: #1a1a2e; }
+.data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 500px) { .data-grid { grid-template-columns: 1fr; } }
+.data-item {}
+.data-label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; margin-bottom: 2px; }
+.data-value { font-size: 0.82rem; color: #222; word-break: break-word; }
+.data-value.empty { color: #ccc; font-style: italic; }
+.data-value.long { white-space: pre-wrap; }
+.tags-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.tag-pill { font-size: 0.69rem; padding: 2px 8px; border-radius: 20px; background: #e0e7ff; color: #3730a3; }
+
+/* ── Edit form ────────────────────────────────────────────────── */
+.edit-form { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 20px; }
+.edit-form h2 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; color: #1a1a2e; }
+.edit-form .form-note { font-size: 0.78rem; color: #888; margin-bottom: 20px; line-height: 1.5; }
+.edit-form .form-field { margin-bottom: 16px; }
+.edit-form label { font-size: 0.73rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6366f1; display: block; margin-bottom: 5px; }
+.edit-form label .hint { font-weight: 400; text-transform: none; font-size: 0.7rem; color: #9ca3af; }
+.edit-form textarea {
+  width: 100%; border: 1.5px solid #d1d5db; border-radius: 8px; padding: 10px 13px;
+  font-size: 0.85rem; font-family: system-ui; outline: none; resize: vertical; min-height: 80px;
+}
+.edit-form textarea:focus { border-color: #6366f1; }
+.edit-form input[type="url"],
+.edit-form input[type="text"] {
+  width: 100%; border: 1.5px solid #d1d5db; border-radius: 8px; padding: 10px 13px;
+  font-size: 0.85rem; outline: none;
+}
+.edit-form input:focus { border-color: #6366f1; }
+.char-count { font-size: 0.7rem; color: #9ca3af; text-align: right; margin-top: 3px; }
+
+/* Image upload */
+.image-upload-area {
+  border: 2px dashed #d1d5db; border-radius: 10px; padding: 20px;
+  text-align: center; cursor: pointer; transition: border-color 0.12s; background: #fafafa;
+}
+.image-upload-area:hover   { border-color: #6366f1; background: #f5f3ff; }
+.image-upload-area.drag-over { border-color: #6366f1; background: #ede9fe; }
+.upload-icon  { font-size: 2rem; margin-bottom: 8px; }
+.upload-label { font-size: 0.8rem; color: #666; }
+.upload-label strong { color: #6366f1; }
+.upload-sublabel { font-size: 0.72rem; color: #aaa; margin-top: 4px; }
+.upload-input { display: none; }
+.image-preview-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.preview-img-wrap {
+  position: relative; width: 100px; height: 75px;
+}
+.preview-img { width: 100%; height: 100%; object-fit: cover; border-radius: 7px; border: 1px solid #e5e7eb; }
+.preview-remove {
+  position: absolute; top: -6px; right: -6px; width: 20px; height: 20px;
+  background: #ef4444; color: #fff; border: none; border-radius: 50%;
+  cursor: pointer; font-size: 0.75rem; display: flex; align-items: center; justify-content: center;
+}
+.upload-progress { font-size: 0.75rem; color: #6366f1; margin-top: 6px; }
+
+/* ── Submit button ────────────────────────────────────────────── */
+.submit-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
+.submit-section p { font-size: 0.78rem; color: #888; margin-bottom: 14px; line-height: 1.5; }
+.btn-submit {
+  background: #6366f1; color: #fff; border: none; border-radius: 9px;
+  padding: 13px 28px; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: background 0.12s;
+}
+.btn-submit:hover    { background: #4f46e5; }
+.btn-submit:disabled { opacity: 0.6; cursor: default; }
+.submit-err { color: #dc2626; font-size: 0.78rem; margin-top: 10px; }
+
+/* ── Submissions history ──────────────────────────────────────── */
+.history-panel { background: #fff; border-radius: 14px; padding: 24px; box-shadow: 0 1px 6px rgba(0,0,0,0.08); margin-bottom: 20px; }
+.history-panel h2 { font-size: 1rem; font-weight: 700; margin-bottom: 14px; }
+.history-empty { font-size: 0.82rem; color: #aaa; font-style: italic; }
+.history-item { border: 1px solid #e5e7eb; border-radius: 9px; padding: 12px 16px; margin-bottom: 8px; }
+.history-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.history-date  { font-size: 0.72rem; color: #9ca3af; }
+.history-badge { font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.history-badge.pending  { background: #fef3c7; color: #92400e; }
+.history-badge.approved { background: #d1fae5; color: #065f46; }
+.history-badge.rejected { background: #fee2e2; color: #991b1b; }
+.history-fields { font-size: 0.75rem; color: #666; margin-top: 5px; }
+.history-note { font-size: 0.73rem; color: #9ca3af; margin-top: 4px; }
+
+/* ── Toast ────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: #fff;
+  padding: 11px 20px; border-radius: 10px; font-size: 0.82rem; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25); transform: translateY(80px); opacity: 0;
+  transition: all 0.25s; z-index: 9998;
+}
+#toast.show    { transform: translateY(0); opacity: 1; }
+#toast.success { background: #065f46; }
+#toast.error   { background: #991b1b; }
+
+footer { text-align: center; padding: 24px; font-size: 0.78rem; color: #aaa; }
+</style>
+</head>
+<body>
+
+<!-- ── Login / Register ─────────────────────────────────────────── -->
+<div id="screen-login" class="screen active">
+  <div class="auth-box">
+    <div class="logo">🏙</div>
+    <h1>Meridian Business Portal</h1>
+    <p class="subtitle">Manage your listing on the Meridian Bristol directory.</p>
+
+    <div id="auth-login-form">
+      <div class="form-field">
+        <label for="auth-email">Email</label>
+        <input type="text" id="auth-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-field">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn-primary" id="btn-login" onclick="doLogin()">Sign In</button>
+      <div class="auth-divider">or</div>
+      <button class="btn-magic" onclick="doMagicLink()">✉ Send Magic Link</button>
+      <div class="auth-msg" id="auth-msg"></div>
+      <div class="auth-toggle">No account? <a onclick="showRegister()">Create one</a></div>
+    </div>
+
+    <div id="auth-register-form" style="display:none">
+      <div class="form-field">
+        <label for="reg-email">Email</label>
+        <input type="text" id="reg-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="form-field">
+        <label for="reg-password">Password <span style="font-weight:400;color:#aaa">(min 8 chars)</span></label>
+        <input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <button class="btn-primary" id="btn-register" onclick="doRegister()">Create Account</button>
+      <div class="auth-msg" id="reg-msg"></div>
+      <div class="auth-toggle">Have an account? <a onclick="showLogin()">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── App Shell ────────────────────────────────────────────────── -->
+<div id="app-shell">
+  <div class="top-bar">
+    <h1>🏙 Meridian Business Portal</h1>
+    <span class="user-badge" id="user-badge">…</span>
+    <button class="btn-signout" onclick="doSignOut()">Sign Out</button>
+  </div>
+
+  <div class="main-content">
+
+    <!-- Loading -->
+    <div id="state-loading" class="status-card" style="display:none">
+      <div class="icon">⏳</div>
+      <h2>Loading your account…</h2>
+      <p id="loading-detail">Please wait.</p>
+    </div>
+
+    <!-- No Claim: search for business -->
+    <div id="state-no-claim" style="display:none">
+      <div class="status-card">
+        <div class="icon">🏪</div>
+        <h2>Welcome to the Business Portal</h2>
+        <p>Search for your business below to claim your listing and start updating your profile.</p>
+      </div>
+      <div class="search-section">
+        <h2>Find your business</h2>
+        <p>Search by business name to find your listing on Meridian.</p>
+        <div class="search-row">
+          <input class="search-input" type="text" id="biz-search" placeholder="e.g. The Coffee House"
+            onkeydown="if(event.key==='Enter') searchListings()">
+          <button class="btn-search" onclick="searchListings()">Search</button>
+        </div>
+        <div id="search-results" class="search-results"></div>
+        <div id="search-msg" style="font-size:0.78rem;color:#888;margin-top:8px;display:none"></div>
+      </div>
+    </div>
+
+    <!-- Claim Pending -->
+    <div id="state-claim-pending" style="display:none">
+      <div class="status-card">
+        <div class="icon">🔍</div>
+        <h2>Claim Under Review</h2>
+        <p>We've received your claim request and a curator is reviewing it. You'll be able to update your listing once it's approved.</p>
+        <p class="note">This usually takes 1–2 business days.</p>
+      </div>
+    </div>
+
+    <!-- Claim Rejected -->
+    <div id="state-claim-rejected" style="display:none">
+      <div class="status-card">
+        <div class="icon">❌</div>
+        <h2>Claim Not Approved</h2>
+        <p id="reject-reason">Your claim could not be verified at this time. Please contact us if you believe this is an error.</p>
+      </div>
+    </div>
+
+    <!-- Dashboard (claim approved) -->
+    <div id="state-dashboard" style="display:none">
+
+      <!-- Current listing data -->
+      <div class="listing-panel" id="listing-display">
+        <h2>Your Current Listing</h2>
+        <div class="data-grid" id="listing-data-grid"></div>
+      </div>
+
+      <!-- Edit form -->
+      <div class="edit-form" id="edit-form-section">
+        <h2>Propose Updates</h2>
+        <p class="form-note">
+          Fill in any fields you'd like to update. Your changes will be reviewed by a curator before going live.
+          Only fill in what you want to change — empty fields will keep their current values.
+        </p>
+
+        <div class="form-field">
+          <label for="f-story">Founder's Story <span class="hint">— who are you, how did it start, what makes you special?</span></label>
+          <textarea id="f-story" rows="6" placeholder="Tell the story of your business…" oninput="updateCharCount('f-story','story-count',1500)"></textarea>
+          <div class="char-count" id="story-count">0 / 1500</div>
+        </div>
+
+        <div class="form-field">
+          <label for="f-logo">Logo URL <span class="hint">— paste a link to your logo (PNG or SVG, transparent background works best)</span></label>
+          <input type="url" id="f-logo" placeholder="https://...">
+        </div>
+
+        <div class="form-field">
+          <label for="f-founders-img">Founder's Photo URL <span class="hint">— optional photo shown alongside your story</span></label>
+          <input type="url" id="f-founders-img" placeholder="https://...">
+        </div>
+
+        <div class="form-field">
+          <label>Upload Photos <span class="hint">— up to 3 images for your listing (JPEG/PNG, max 5MB each)</span></label>
+          <div class="image-upload-area" id="upload-area"
+            onclick="document.getElementById('img-file-input').click()"
+            ondragover="onDragOver(event)"
+            ondragleave="onDragLeave(event)"
+            ondrop="onDrop(event)">
+            <div class="upload-icon">🖼</div>
+            <div class="upload-label"><strong>Click to upload</strong> or drag & drop</div>
+            <div class="upload-sublabel">JPEG, PNG · max 5MB each · up to 3 images</div>
+            <input class="upload-input" type="file" id="img-file-input" accept="image/jpeg,image/png,image/webp" multiple onchange="onFileSelect(this.files)">
+          </div>
+          <div id="upload-progress" class="upload-progress" style="display:none"></div>
+          <div class="image-preview-row" id="preview-row"></div>
+        </div>
+
+        <div class="submit-section">
+          <p>
+            When you're ready, click <strong>Submit for Review</strong>. A curator will review your changes
+            within 1–2 business days. You'll see the status below.
+          </p>
+          <button class="btn-submit" id="btn-submit" onclick="submitForReview()">Submit for Review</button>
+          <div class="submit-err" id="submit-err"></div>
+        </div>
+      </div>
+
+      <!-- Submissions history -->
+      <div class="history-panel" id="history-panel">
+        <h2>Submission History</h2>
+        <div id="history-list"><p class="history-empty">No submissions yet.</p></div>
+      </div>
+
+    </div><!-- /state-dashboard -->
+
+  </div><!-- /main-content -->
+  <footer>Meridian Directory · <a href="/" style="color:#6366f1">Browse Listings</a></footer>
+</div><!-- /app-shell -->
+
+<div id="toast"></div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const SUPABASE_URL      = "https://ecrupbqtlhuisqmybleu.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_bG0FgHl8eFqK_VjVACRqjg_mAtuFbjg";
+const STORAGE_BUCKET    = "owner-images";
+const { createClient }  = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ── State ───────────────────────────────────────────────────────────────────
+let currentUser    = null;
+let ownerProfile   = null;
+let currentListing = null;
+let uploadedUrls   = [];   // Supabase Storage URLs from file upload
+
+// ── Boot ────────────────────────────────────────────────────────────────────
+async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) await onLogin(session.user);
+
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === "SIGNED_IN"  && session) await onLogin(session.user);
+    if (event === "SIGNED_OUT")            showScreen("screen-login");
+  });
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+function showLogin()    { document.getElementById("auth-login-form").style.display = ""; document.getElementById("auth-register-form").style.display = "none"; document.getElementById("auth-msg").textContent = ""; }
+function showRegister() { document.getElementById("auth-login-form").style.display = "none"; document.getElementById("auth-register-form").style.display = ""; document.getElementById("reg-msg").textContent = ""; }
+
+async function doLogin() {
+  const email    = document.getElementById("auth-email").value.trim();
+  const password = document.getElementById("auth-password").value;
+  const msgEl    = document.getElementById("auth-msg");
+  const btn      = document.getElementById("btn-login");
+  msgEl.textContent = ""; msgEl.className = "auth-msg";
+  if (!email || !password) { msgEl.textContent = "Enter your email and password."; msgEl.className = "auth-msg err"; return; }
+  btn.disabled = true; btn.textContent = "Signing in…";
+  const { error } = await db.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = "Sign In";
+  if (error) { msgEl.textContent = error.message; msgEl.className = "auth-msg err"; }
+}
+
+async function doMagicLink() {
+  const email = document.getElementById("auth-email").value.trim();
+  const msgEl = document.getElementById("auth-msg");
+  msgEl.textContent = ""; msgEl.className = "auth-msg";
+  if (!email) { msgEl.textContent = "Enter your email first."; msgEl.className = "auth-msg err"; return; }
+  const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+  if (error) { msgEl.textContent = error.message; msgEl.className = "auth-msg err"; }
+  else        { msgEl.textContent = "Magic link sent! Check your email."; msgEl.className = "auth-msg ok"; }
+}
+
+async function doRegister() {
+  const email    = document.getElementById("reg-email").value.trim();
+  const password = document.getElementById("reg-password").value;
+  const msgEl    = document.getElementById("reg-msg");
+  const btn      = document.getElementById("btn-register");
+  msgEl.textContent = ""; msgEl.className = "auth-msg";
+  if (!email || !password) { msgEl.textContent = "Fill in all fields."; msgEl.className = "auth-msg err"; return; }
+  if (password.length < 8) { msgEl.textContent = "Password must be at least 8 characters."; msgEl.className = "auth-msg err"; return; }
+  btn.disabled = true; btn.textContent = "Creating account…";
+  const { error } = await db.auth.signUp({ email, password });
+  btn.disabled = false; btn.textContent = "Create Account";
+  if (error) { msgEl.textContent = error.message; msgEl.className = "auth-msg err"; }
+  else        { msgEl.textContent = "Account created! Check your email to confirm, then sign in."; msgEl.className = "auth-msg ok"; }
+}
+
+async function doSignOut() {
+  await db.auth.signOut();
+}
+
+// ── After login ──────────────────────────────────────────────────────────────
+async function onLogin(user) {
+  currentUser = user;
+  showScreen("app-shell");
+  document.getElementById("user-badge").textContent = user.email;
+  showState("loading");
+  document.getElementById("loading-detail").textContent = "Loading your profile…";
+  await loadProfile();
+}
+
+async function loadProfile() {
+  const { data: profile, error } = await db
+    .from("owner_profiles")
+    .select("*, listings(*)")
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+
+  if (error) { showToast("Error loading profile: " + error.message, "error"); return; }
+
+  ownerProfile = profile;
+
+  if (!profile) {
+    showState("no-claim");
+    return;
+  }
+
+  if (profile.claim_status === "pending") {
+    showState("claim-pending");
+    return;
+  }
+
+  if (profile.claim_status === "rejected") {
+    const reasonEl = document.getElementById("reject-reason");
+    if (profile.reject_note) reasonEl.textContent = "Reason: " + profile.reject_note;
+    showState("claim-rejected");
+    return;
+  }
+
+  // Approved — load full listing
+  currentListing = profile.listings;
+  if (!currentListing) {
+    showToast("Listing not found — contact support.", "error");
+    showState("no-claim");
+    return;
+  }
+  renderListingDisplay(currentListing);
+  prefillEditForm(currentListing);
+  await loadSubmissionHistory();
+  showState("dashboard");
+}
+
+// ── Search & Claim ────────────────────────────────────────────────────────────
+async function searchListings() {
+  const query  = document.getElementById("biz-search").value.trim();
+  const msgEl  = document.getElementById("search-msg");
+  const resEl  = document.getElementById("search-results");
+  if (!query) return;
+
+  msgEl.textContent = "Searching…"; msgEl.style.display = "";
+  resEl.innerHTML   = "";
+
+  const { data, error } = await db
+    .from("listings")
+    .select("id, name, address, category, area_slug")
+    .ilike("name", `%${query}%`)
+    .limit(10);
+
+  if (error) { msgEl.textContent = "Search failed: " + error.message; return; }
+  if (!data?.length) { msgEl.textContent = "No results. Try a different search."; return; }
+
+  msgEl.style.display = "none";
+  resEl.innerHTML = data.map(row => `
+    <div class="result-item" id="result-${row.id}" onclick="selectListing('${row.id}','${esc(row.name)}')">
+      <div>
+        <div class="result-name">${esc(row.name)}</div>
+        <div class="result-meta">${esc((row.area_slug||'').replace(/-/g,' '))} · ${esc(row.category||'')} · ${esc(row.address||'')}</div>
+      </div>
+      <button class="btn-claim" onclick="event.stopPropagation();claimListing('${row.id}')">Claim</button>
+    </div>
+  `).join("");
+}
+
+let _selectedListingId = null;
+function selectListing(id, name) {
+  _selectedListingId = id;
+  document.querySelectorAll(".result-item").forEach(el => el.classList.remove("selected"));
+  document.getElementById("result-" + id)?.classList.add("selected");
+}
+
+async function claimListing(listingId) {
+  const { data: existing } = await db
+    .from("owner_profiles")
+    .select("id, claim_status")
+    .eq("listing_id", listingId)
+    .eq("claim_status", "approved")
+    .maybeSingle();
+
+  if (existing) {
+    showToast("This listing already has a verified owner.", "error");
+    return;
+  }
+
+  const { error } = await db.from("owner_profiles").insert({
+    user_id:      currentUser.id,
+    listing_id:   listingId,
+    claim_status: "pending",
+    claimed_at:   new Date().toISOString(),
+  });
+
+  if (error) {
+    if (error.code === "23505") {
+      showToast("You already have a claim on file.", "");
+      showState("claim-pending");
+    } else {
+      showToast("Failed to submit claim: " + error.message, "error");
+    }
+    return;
+  }
+
+  ownerProfile = { user_id: currentUser.id, listing_id: listingId, claim_status: "pending" };
+  showToast("Claim submitted! We'll review it shortly.", "success");
+  showState("claim-pending");
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function renderListingDisplay(listing) {
+  const fields = [
+    { key: "name",           label: "Business Name" },
+    { key: "category",       label: "Category" },
+    { key: "address",        label: "Address" },
+    { key: "phone",          label: "Phone" },
+    { key: "website",        label: "Website" },
+    { key: "email",          label: "Email" },
+    { key: "founders_story", label: "Founder's Story", long: true, span: 2 },
+    { key: "logo_url",       label: "Logo URL" },
+    { key: "founders_image", label: "Founder's Image" },
+    { key: "description",    label: "Description", long: true, span: 2 },
+    { key: "tags",           label: "Tags", tags: true },
+  ];
+  const grid = document.getElementById("listing-data-grid");
+  grid.innerHTML = fields.map(f => {
+    let val = listing[f.key];
+    let valHtml;
+    if (f.tags && Array.isArray(val)) {
+      valHtml = val.length
+        ? `<div class="tags-list">${val.map(t => `<span class="tag-pill">${esc(t)}</span>`).join("")}</div>`
+        : `<span class="data-value empty">none</span>`;
+    } else if (val) {
+      valHtml = `<span class="data-value${f.long ? ' long' : ''}">${esc(val)}</span>`;
+    } else {
+      valHtml = `<span class="data-value empty">not set</span>`;
+    }
+    const spanStyle = f.span === 2 ? 'style="grid-column:1/-1"' : "";
+    return `<div class="data-item" ${spanStyle}><div class="data-label">${f.label}</div>${valHtml}</div>`;
+  }).join("");
+}
+
+function prefillEditForm(listing) {
+  if (listing.founders_story) {
+    document.getElementById("f-story").value = listing.founders_story;
+    updateCharCount("f-story", "story-count", 1500);
+  }
+  if (listing.logo_url)       document.getElementById("f-logo").value          = listing.logo_url;
+  if (listing.founders_image) document.getElementById("f-founders-img").value  = listing.founders_image;
+}
+
+async function loadSubmissionHistory() {
+  const { data } = await db
+    .from("owner_submissions")
+    .select("id, submitted_at, status, proposed_fields, curator_notes")
+    .eq("owner_user_id", currentUser.id)
+    .order("submitted_at", { ascending: false })
+    .limit(10);
+
+  const listEl = document.getElementById("history-list");
+  if (!data?.length) { listEl.innerHTML = '<p class="history-empty">No submissions yet.</p>'; return; }
+
+  listEl.innerHTML = data.map(item => {
+    const fieldNames = Object.keys(item.proposed_fields || {}).join(", ") || "images";
+    return `
+      <div class="history-item">
+        <div class="history-top">
+          <span class="history-date">${new Date(item.submitted_at).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}</span>
+          <span class="history-badge ${item.status}">${item.status}</span>
+        </div>
+        <div class="history-fields">Fields: ${esc(fieldNames)}</div>
+        ${item.curator_notes ? `<div class="history-note">Curator note: ${esc(item.curator_notes)}</div>` : ""}
+      </div>`;
+  }).join("");
+}
+
+// ── Image Upload ──────────────────────────────────────────────────────────────
+function onDragOver(e)  { e.preventDefault(); document.getElementById("upload-area").classList.add("drag-over"); }
+function onDragLeave(e) { document.getElementById("upload-area").classList.remove("drag-over"); }
+function onDrop(e)      { e.preventDefault(); onDragLeave(e); onFileSelect(e.dataTransfer.files); }
+
+async function onFileSelect(files) {
+  const MAX_FILES = 3;
+  const MAX_SIZE  = 5 * 1024 * 1024;
+  const allowed   = Array.from(files).slice(0, MAX_FILES - uploadedUrls.length);
+
+  const progressEl = document.getElementById("upload-progress");
+  progressEl.style.display = "";
+
+  for (const file of allowed) {
+    if (!file.type.startsWith("image/")) { showToast("Only images are accepted.", "error"); continue; }
+    if (file.size > MAX_SIZE)            { showToast(`${file.name} is too large (max 5MB).`, "error"); continue; }
+
+    progressEl.textContent = `Uploading ${file.name}…`;
+
+    const ext  = file.name.split(".").pop();
+    const path = `${currentUser.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { data: uploadData, error: uploadErr } = await db.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, file, { contentType: file.type, upsert: false });
+
+    if (uploadErr) { showToast("Upload failed: " + uploadErr.message, "error"); continue; }
+
+    const { data: urlData } = db.storage.from(STORAGE_BUCKET).getPublicUrl(uploadData.path);
+    const url = urlData.publicUrl;
+    uploadedUrls.push(url);
+    addPreviewImage(url, path);
+  }
+
+  progressEl.style.display = "none";
+  document.getElementById("img-file-input").value = "";
+}
+
+function addPreviewImage(url, path) {
+  const row   = document.getElementById("preview-row");
+  const wrap  = document.createElement("div");
+  wrap.className = "preview-img-wrap";
+  wrap.innerHTML = `<img class="preview-img" src="${esc(url)}" alt="preview">
+    <button class="preview-remove" onclick="removeUpload('${esc(url)}','${esc(path)}',this.parentElement)" title="Remove">×</button>`;
+  row.appendChild(wrap);
+}
+
+async function removeUpload(url, path, wrapEl) {
+  uploadedUrls = uploadedUrls.filter(u => u !== url);
+  await db.storage.from(STORAGE_BUCKET).remove([path]);
+  wrapEl.remove();
+}
+
+// ── Submit for Review ─────────────────────────────────────────────────────────
+async function submitForReview() {
+  const errEl = document.getElementById("submit-err");
+  const btn   = document.getElementById("btn-submit");
+  errEl.textContent = "";
+
+  const story     = document.getElementById("f-story").value.trim()        || null;
+  const logo      = document.getElementById("f-logo").value.trim()         || null;
+  const foundImg  = document.getElementById("f-founders-img").value.trim() || null;
+
+  const proposed = {};
+  if (story    && story    !== (currentListing.founders_story || "")) proposed.founders_story = story;
+  if (logo     && logo     !== (currentListing.logo_url       || "")) proposed.logo_url       = logo;
+  if (foundImg && foundImg !== (currentListing.founders_image || "")) proposed.founders_image = foundImg;
+
+  if (!Object.keys(proposed).length && !uploadedUrls.length) {
+    errEl.textContent = "Nothing to submit — make at least one change.";
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = "Submitting…";
+
+  const { error } = await db.from("owner_submissions").insert({
+    listing_id:         currentListing.id,
+    owner_user_id:      currentUser.id,
+    owner_email:        currentUser.email,
+    submitted_at:       new Date().toISOString(),
+    status:             "pending",
+    proposed_fields:    Object.keys(proposed).length ? proposed : null,
+    proposed_image_urls: uploadedUrls.length ? [...uploadedUrls] : null,
+  });
+
+  btn.disabled = false; btn.textContent = "Submit for Review";
+
+  if (error) { errEl.textContent = "Submission failed: " + error.message; return; }
+
+  uploadedUrls = [];
+  document.getElementById("preview-row").innerHTML = "";
+  showToast("Submitted! We'll review your changes shortly.", "success");
+  await loadSubmissionHistory();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function showScreen(id) {
+  ["screen-login", "app-shell"].forEach(s => {
+    const el = document.getElementById(s);
+    if (el) el.classList.toggle("active", s === id);
+  });
+}
+
+function showState(state) {
+  ["loading","no-claim","claim-pending","claim-rejected","dashboard"].forEach(s => {
+    const el = document.getElementById("state-" + s);
+    if (el) el.style.display = (s === state ? "" : "none");
+  });
+}
+
+function updateCharCount(inputId, countId, max) {
+  const len  = document.getElementById(inputId)?.value.length || 0;
+  const el   = document.getElementById(countId);
+  if (el) el.textContent = `${len} / ${max}`;
+}
+
+let _toastTimer;
+function showToast(msg, type = "") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className   = "show " + type;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = ""; }, 4000);
+}
+
+function esc(str) {
+  if (!str && str !== 0) return "";
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
