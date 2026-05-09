@@ -367,7 +367,9 @@ footer { text-align: center; padding: 24px; font-size: 0.78rem; color: #aaa; }
       <button class="filter-btn"        data-filter="no-story"  onclick="setFilter('view','no-story',this)">No Story</button>
       <button class="filter-btn"        data-filter="no-tags"   onclick="setFilter('view','no-tags',this)">No Tags</button>
       <button class="filter-btn"        data-filter="no-image"  onclick="setFilter('view','no-image',this)">No Image</button>
-      <button class="filter-btn"        data-filter="no-desc"   onclick="setFilter('view','no-desc',this)">No Desc</button>
+      <button class="filter-btn"        data-filter="no-desc"     onclick="setFilter('view','no-desc',this)">No Desc</button>
+      <button class="filter-btn"        data-filter="no-delivery" onclick="setFilter('view','no-delivery',this)">No Delivery</button>
+      <button class="filter-btn"        data-filter="no-booking"  onclick="setFilter('view','no-booking',this)">No Booking</button>
     </div>
     <div class="filter-sep"></div>
     <div class="filter-group" id="filter-status">
@@ -441,21 +443,26 @@ const CATEGORY_SLUGS = {
 };
 
 const CATEGORIES_DATA = [
-  { slug: "cafes",                  display: "Cafes",                  emoji: "☕" },
-  { slug: "restaurants",            display: "Restaurants & Fast Food", emoji: "🍽️" },
-  { slug: "food-and-produce",       display: "Food & Produce",          emoji: "🍎" },
-  { slug: "drinks-and-brewing",     display: "Drinks & Brewing",        emoji: "🍺" },
-  { slug: "health-and-wellbeing",   display: "Health & Wellbeing",      emoji: "🧘" },
-  { slug: "fitness-and-sports",     display: "Fitness & Sports",        emoji: "🏋️" },
-  { slug: "entertainment",          display: "Entertainment",           emoji: "🎉" },
-  { slug: "art-and-design",         display: "Art & Design",            emoji: "🎨" },
-  { slug: "craft-and-makers",       display: "Craft & Makers",          emoji: "🛠" },
-  { slug: "plants-and-garden",      display: "Plants & Garden",         emoji: "🌱" },
-  { slug: "home-and-interiors",     display: "Home & Interiors",        emoji: "🏠" },
-  { slug: "services",               display: "Services",                emoji: "🔧" },
-  { slug: "accommodation",          display: "Accommodation",           emoji: "🏨" },
-  { slug: "retail-and-fashion",     display: "Retail & Fashion",        emoji: "👗" },
+  { slug: "cafes",                  display: "Cafes",                  emoji: "☕",  imageTypes: ["cafe"] },
+  { slug: "restaurants",            display: "Restaurants & Fast Food", emoji: "🍽️", imageTypes: ["ice-cream", "restaurant", "fast-food"] },
+  { slug: "food-and-produce",       display: "Food & Produce",          emoji: "🍎",  imageTypes: ["bakery", "deli", "cheesemonger", "sweet-shop", "supermarket", "greengrocer", "corner-shop"] },
+  { slug: "drinks-and-brewing",     display: "Drinks & Brewing",        emoji: "🍺",  imageTypes: ["pub", "brewery", "wine-bar", "cocktail-bar", "off-licence"] },
+  { slug: "health-and-wellbeing",   display: "Health & Wellbeing",      emoji: "🧘",  imageTypes: ["hairdresser", "barbershop", "nail-salon", "sauna", "yoga", "pharmacy", "dentist"] },
+  { slug: "fitness-and-sports",     display: "Fitness & Sports",        emoji: "🏋️", imageTypes: ["fitness-studio", "swimming-pool", "golf-course", "climbing-wall"] },
+  { slug: "entertainment",          display: "Entertainment",           emoji: "🎉",  imageTypes: ["cinema", "theatre", "live-music", "nightclub"] },
+  { slug: "art-and-design",         display: "Art & Design",            emoji: "🎨",  imageTypes: ["gallery", "arts-centre", "photography-studio", "dance-studio"] },
+  { slug: "craft-and-makers",       display: "Craft & Makers",          emoji: "🛠",  imageTypes: ["pottery", "ceramics", "weaving", "textiles"] },
+  { slug: "plants-and-garden",      display: "Plants & Garden",         emoji: "🌱",  imageTypes: ["florist", "garden-centre", "landscaping", "nursery"] },
+  { slug: "home-and-interiors",     display: "Home & Interiors",        emoji: "🏠",  imageTypes: ["antiques", "furniture", "lighting", "homeware", "flooring"] },
+  { slug: "services",               display: "Services",                emoji: "🔧",  imageTypes: ["charity-shop", "dry-cleaning", "tailors", "launderette"] },
+  { slug: "accommodation",          display: "Accommodation",           emoji: "🏨",  imageTypes: ["hotel", "hostel", "bed-and-breakfast", "guest-house"] },
+  { slug: "retail-and-fashion",     display: "Retail & Fashion",        emoji: "👗",  imageTypes: ["clothing", "boutique", "bookshop", "shoes", "stationery"] },
 ];
+
+function getImageTypes(categoryDisplay) {
+  const cat = CATEGORIES_DATA.find(c => c.display === categoryDisplay);
+  return cat ? cat.imageTypes : [];
+}
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 async function init() {
@@ -636,8 +643,10 @@ function applyFilters() {
     }
     if (view === "no-story" && row.founders_story) return false;
     if (view === "no-tags"  && row.tags && row.tags.length >= 3) return false;
-    if (view === "no-image" && row.image_url) return false;
-    if (view === "no-desc"  && row.description) return false;
+    if (view === "no-image"    && row.image_url) return false;
+    if (view === "no-desc"     && row.description) return false;
+    if (view === "no-delivery" && (row.delivery_deliveroo || row.delivery_ubereats || row.delivery_justeat || row.delivery_foodhub || row.delivery_beelivery)) return false;
+    if (view === "no-booking"  && (row.booking_opentable || row.booking_firsttable || row.booking_resdiary || row.booking_thefork || row.booking_sevenrooms || row.booking_quandoo || row.booking_resy || row.booking_designmynight)) return false;
 
     if (status !== "all") {
       const rowStatus = (row.status || "pending").toLowerCase();
@@ -856,6 +865,22 @@ function initEditState(id, row) {
     logo_url:           row.logo_url           || "",
     image_url:          row.image_url          || "",
     is_featured:        row.is_featured        || false,
+    show_logo:          row.show_logo          || false,
+    image_category:     row.image_category     || null,
+    secondary_category: row.secondary_category || null,
+    delivery_deliveroo:      row.delivery_deliveroo      || "",
+    delivery_ubereats:       row.delivery_ubereats       || "",
+    delivery_justeat:        row.delivery_justeat        || "",
+    delivery_foodhub:        row.delivery_foodhub        || "",
+    delivery_beelivery:      row.delivery_beelivery      || "",
+    booking_opentable:       row.booking_opentable       || "",
+    booking_firsttable:      row.booking_firsttable      || "",
+    booking_resdiary:        row.booking_resdiary        || "",
+    booking_thefork:         row.booking_thefork         || "",
+    booking_sevenrooms:      row.booking_sevenrooms      || "",
+    booking_quandoo:         row.booking_quandoo         || "",
+    booking_resy:            row.booking_resy            || "",
+    booking_designmynight:   row.booking_designmynight   || "",
   };
 }
 
@@ -876,6 +901,15 @@ function buildEditPanel(row) {
     ...(CATEGORY_SLUGS[s.category] || []).map(slug =>
       `<button class="pill-btn${s.category_slug === slug ? ' selected green-select' : ''}" data-slug="${esc(slug)}"
         onclick="_setSlug('${row.id}',this.dataset.slug)">${esc(slug)}</button>`)
+  ].join("");
+
+  // Image category buttons
+  const imgTypes = getImageTypes(s.category);
+  const imgCatBtns = [
+    `<button class="pill-btn${!s.image_category ? ' selected green-select' : ''}" data-type="" onclick="_setImageCat('${row.id}','')">— auto —</button>`,
+    ...imgTypes.map(t =>
+      `<button class="pill-btn${s.image_category === t ? ' selected green-select' : ''}" data-type="${esc(t)}"
+        onclick="_setImageCat('${row.id}',this.dataset.type)">${esc(t)}</button>`)
   ].join("");
 
   // Status buttons
@@ -937,6 +971,22 @@ function buildEditPanel(row) {
       <div class="pill-buttons" id="slug-btns-${row.id}">${slugBtns}</div>
     </div>
     <div class="edit-row">
+      <div class="edit-label">Secondary Category <span class="edit-label-hint">e.g. a bakery that also serves coffee → add Cafes as 2nd category</span></div>
+      <div class="cat-grid" id="secondary-cat-btns-${row.id}">
+        <button class="cat-icon-btn${!s.secondary_category ? ' selected' : ''}" data-cat=""
+          onclick="_setSecondaryCat('${row.id}','')">✕ None</button>
+        ${CATEGORIES_DATA.map(cat => {
+          const sel = s.secondary_category === cat.display;
+          return `<button class="cat-icon-btn${sel ? ' selected' : ''}" data-cat="${esc(cat.display)}"
+            onclick="_setSecondaryCat('${row.id}',this.dataset.cat)">${cat.emoji} ${esc(cat.display)}</button>`;
+        }).join("")}
+      </div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Image Category <span class="edit-label-hint">override the auto-assigned image folder for this listing</span></div>
+      <div class="pill-buttons" id="image-cat-btns-${row.id}">${imgCatBtns}</div>
+    </div>
+    <div class="edit-row">
       <div class="edit-label">Ranking Tier</div>
       <div class="pill-buttons">${tierBtns}</div>
     </div>
@@ -969,6 +1019,13 @@ function buildEditPanel(row) {
       <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;">
         <input type="checkbox" id="ed-featured-${row.id}" ${s.is_featured ? "checked" : ""}>
         Is featured listing
+      </label>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Show Logo? <span class="edit-label-hint">display logo badge on listing card</span></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;">
+        <input type="checkbox" id="ed-show-logo-${row.id}" ${s.show_logo ? "checked" : ""}>
+        Show logo on card
       </label>
     </div>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
@@ -1018,6 +1075,66 @@ function buildEditPanel(row) {
     </div>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
     <div class="edit-row">
+      <div class="edit-label" style="font-weight:600;color:#374151;">🚚 Delivery Platforms <span class="edit-label-hint">paste the full listing URL from each platform</span></div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Deliveroo</div>
+      <input type="url" id="ed-del-deliveroo-${row.id}" value="${esc(s.delivery_deliveroo)}" placeholder="https://deliveroo.co.uk/menu/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Uber Eats</div>
+      <input type="url" id="ed-del-ubereats-${row.id}" value="${esc(s.delivery_ubereats)}" placeholder="https://www.ubereats.com/gb/store/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Just Eat</div>
+      <input type="url" id="ed-del-justeat-${row.id}" value="${esc(s.delivery_justeat)}" placeholder="https://www.just-eat.co.uk/restaurants-...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Foodhub</div>
+      <input type="url" id="ed-del-foodhub-${row.id}" value="${esc(s.delivery_foodhub)}" placeholder="https://foodhub.co.uk/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Beelivery</div>
+      <input type="url" id="ed-del-beelivery-${row.id}" value="${esc(s.delivery_beelivery)}" placeholder="https://www.beelivery.co.uk/...">
+    </div>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
+    <div class="edit-row">
+      <div class="edit-label" style="font-weight:600;color:#374151;">📍 Table Reservations <span class="edit-label-hint">paste the full booking page URL</span></div>
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">OpenTable</div>
+      <input type="url" id="ed-bk-opentable-${row.id}" value="${esc(s.booking_opentable)}" placeholder="https://www.opentable.co.uk/r/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">First Table</div>
+      <input type="url" id="ed-bk-firsttable-${row.id}" value="${esc(s.booking_firsttable)}" placeholder="https://firsttable.co.uk/restaurant/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">ResDiary</div>
+      <input type="url" id="ed-bk-resdiary-${row.id}" value="${esc(s.booking_resdiary)}" placeholder="https://www.resdiary.com/restaurant/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">TheFork</div>
+      <input type="url" id="ed-bk-thefork-${row.id}" value="${esc(s.booking_thefork)}" placeholder="https://www.thefork.co.uk/restaurant/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">SevenRooms</div>
+      <input type="url" id="ed-bk-sevenrooms-${row.id}" value="${esc(s.booking_sevenrooms)}" placeholder="https://sevenrooms.com/reservations/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Quandoo</div>
+      <input type="url" id="ed-bk-quandoo-${row.id}" value="${esc(s.booking_quandoo)}" placeholder="https://www.quandoo.co.uk/place/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">Resy</div>
+      <input type="url" id="ed-bk-resy-${row.id}" value="${esc(s.booking_resy)}" placeholder="https://resy.com/cities/lon/venues/...">
+    </div>
+    <div class="edit-row">
+      <div class="edit-label">DesignMyNight</div>
+      <input type="url" id="ed-bk-designmynight-${row.id}" value="${esc(s.booking_designmynight)}" placeholder="https://www.designmynight.com/london/bars/...">
+    </div>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
+    <div class="edit-row">
       <div class="edit-label">Instagram</div>
       <input type="url" id="ed-ig-${row.id}" value="${esc(s.social_instagram)}" placeholder="https://www.instagram.com/...">
     </div>
@@ -1053,6 +1170,7 @@ function _setCat(id, cat) {
   if (!_editState[id]) return;
   _editState[id].category = cat;
   _editState[id].category_slug = "";
+  _editState[id].image_category = null;
   document.querySelectorAll(`#edit-${id} .cat-icon-btn`).forEach(b => b.classList.toggle("selected", b.dataset.cat === cat));
   // Rebuild slug buttons
   const slugContainer = document.getElementById("slug-btns-" + id);
@@ -1064,6 +1182,28 @@ function _setCat(id, cat) {
         `<button class="pill-btn green-select" data-slug="${esc(slug)}" onclick="_setSlug('${id}',this.dataset.slug)">${esc(slug)}</button>`)
     ].join("");
   }
+  // Rebuild image category buttons
+  const imgCatContainer = document.getElementById("image-cat-btns-" + id);
+  if (imgCatContainer) {
+    const types = getImageTypes(cat);
+    imgCatContainer.innerHTML = [
+      `<button class="pill-btn selected green-select" data-type="" onclick="_setImageCat('${id}','')">— auto —</button>`,
+      ...types.map(t =>
+        `<button class="pill-btn" data-type="${esc(t)}" onclick="_setImageCat('${id}',this.dataset.type)">${esc(t)}</button>`)
+    ].join("");
+  }
+}
+function _setSecondaryCat(id, cat) {
+  if (!_editState[id]) return;
+  _editState[id].secondary_category = cat || null;
+  document.querySelectorAll(`#secondary-cat-btns-${id} .cat-icon-btn`).forEach(b =>
+    b.classList.toggle("selected", b.dataset.cat === (cat || "")));
+}
+function _setImageCat(id, type) {
+  if (!_editState[id]) return;
+  _editState[id].image_category = type || null;
+  document.querySelectorAll(`#image-cat-btns-${id} .pill-btn`).forEach(b =>
+    b.classList.toggle("selected", b.dataset.type === (type || "")));
 }
 function _setSlug(id, slug)   { if (_editState[id]) { _editState[id].category_slug = slug; document.querySelectorAll(`#slug-btns-${id} .pill-btn`).forEach(b => b.classList.toggle("selected", b.dataset.slug === slug)); } }
 function _setStatus(id, val)  { if (_editState[id]) { _editState[id].status = val; document.querySelectorAll(`#edit-${id} .pill-btn[data-val]`).forEach(b => { if (["active","pending","closed"].includes(b.dataset.val)) b.classList.toggle("selected", b.dataset.val === val); }); } }
@@ -1132,7 +1272,6 @@ async function saveEdit(id) {
     description:        gv(`ed-desc-${id}`)                   || null,
     editor_notes:       gv(`ed-notes-${id}`)                  || null,
     founders_story:     gv(`ed-story-${id}`)                  || null,
-    is_featured:        document.getElementById(`ed-featured-${id}`)?.checked ?? false,
     email:              gv(`ed-email-${id}`)                  || null,
     phone:              gv(`ed-phone-${id}`)                  || null,
     website:            gv(`ed-website-${id}`)                || null,
@@ -1150,6 +1289,23 @@ async function saveEdit(id) {
     social_tiktok:      gv(`ed-tk-${id}`)                     || null,
     social_linkedin:    gv(`ed-li-${id}`)                     || null,
     social_youtube:     gv(`ed-yt-${id}`)                     || null,
+    image_category:          s.image_category                       || null,
+    secondary_category:      s.secondary_category                   || null,
+    is_featured:        document.getElementById(`ed-featured-${id}`)?.checked ?? false,
+    show_logo:          document.getElementById(`ed-show-logo-${id}`)?.checked ?? false,
+    delivery_deliveroo:      gv(`ed-del-deliveroo-${id}`)           || null,
+    delivery_ubereats:       gv(`ed-del-ubereats-${id}`)            || null,
+    delivery_justeat:        gv(`ed-del-justeat-${id}`)             || null,
+    delivery_foodhub:        gv(`ed-del-foodhub-${id}`)             || null,
+    delivery_beelivery:      gv(`ed-del-beelivery-${id}`)           || null,
+    booking_opentable:       gv(`ed-bk-opentable-${id}`)            || null,
+    booking_firsttable:      gv(`ed-bk-firsttable-${id}`)           || null,
+    booking_resdiary:        gv(`ed-bk-resdiary-${id}`)             || null,
+    booking_thefork:         gv(`ed-bk-thefork-${id}`)              || null,
+    booking_sevenrooms:      gv(`ed-bk-sevenrooms-${id}`)           || null,
+    booking_quandoo:         gv(`ed-bk-quandoo-${id}`)              || null,
+    booking_resy:            gv(`ed-bk-resy-${id}`)                 || null,
+    booking_designmynight:   gv(`ed-bk-designmynight-${id}`)        || null,
   };
 
   // Build diff for audit log
