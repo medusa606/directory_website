@@ -1,3 +1,4 @@
+import os
 import re
 import unicodedata
 import pandas as pd
@@ -11,16 +12,22 @@ from rapidfuzz import fuzz
 LISTINGS_CSV = "listings.csv"
 UBER_CSV = "uber-eats.csv"
 DELIVEROO_CSV = "deliveroo.csv"
+JUSTEAT_CSV = "justeat.csv"
+FOODHUB_CSV = "foodhub.csv"
+BEELIVERY_CSV = "beelivery.csv"
 
 OUTPUT_LISTINGS_CSV = "listings.updated.csv"
 OUTPUT_REVIEW_CSV = "delivery_matches_review.csv"
 
-# If False, existing deliveroo_url / uber_eats_url values will not be replaced
+# If False, existing values will not be replaced
 OVERWRITE_EXISTING = False
 
 # Auto-update thresholds
 UBER_AUTO_THRESHOLD = 82
 DELIVEROO_AUTO_THRESHOLD = 80
+JUSTEAT_AUTO_THRESHOLD = 82
+FOODHUB_AUTO_THRESHOLD = 82
+BEELIVERY_AUTO_THRESHOLD = 80
 
 # If the best match is only slightly better than the second-best match,
 # skip auto-update and send it to review.
@@ -139,8 +146,11 @@ def get_best_and_second(matches):
 # ============================================================
 
 listings = pd.read_csv(LISTINGS_CSV, dtype=str).fillna("")
-uber = pd.read_csv(UBER_CSV, dtype=str).fillna("")
-deliveroo = pd.read_csv(DELIVEROO_CSV, dtype=str).fillna("")
+uber = pd.read_csv(UBER_CSV, dtype=str).fillna("") if os.path.exists(UBER_CSV) else pd.DataFrame()
+deliveroo = pd.read_csv(DELIVEROO_CSV, dtype=str).fillna("") if os.path.exists(DELIVEROO_CSV) else pd.DataFrame()
+justeat = pd.read_csv(JUSTEAT_CSV, dtype=str).fillna("") if os.path.exists(JUSTEAT_CSV) else pd.DataFrame()
+foodhub = pd.read_csv(FOODHUB_CSV, dtype=str).fillna("") if os.path.exists(FOODHUB_CSV) else pd.DataFrame()
+beelivery = pd.read_csv(BEELIVERY_CSV, dtype=str).fillna("") if os.path.exists(BEELIVERY_CSV) else pd.DataFrame()
 
 
 # Your listings CSV example has a trailing comma, which may create
@@ -163,6 +173,9 @@ required_listing_cols = [
     "business_slug",
     "deliveroo_url",
     "uber_eats_url",
+    "delivery_justeat",
+    "delivery_foodhub",
+    "delivery_beelivery",
 ]
 
 for col in required_listing_cols:
@@ -230,6 +243,76 @@ deliveroo = deliveroo[
 
 
 # ============================================================
+# Normalise Just Eat data
+# Expected columns: service,name,address,postcode,url,cuisines
+# ============================================================
+
+if not justeat.empty:
+    for col in ["service", "name", "address", "postcode", "url", "cuisines"]:
+        if col not in justeat.columns:
+            justeat[col] = ""
+
+    justeat["_name_norm"] = justeat["name"].apply(normalise_text)
+    justeat["_slug_norm"] = justeat["name"].apply(lambda x: str(x).strip().lower())
+    justeat["_address_norm"] = justeat["address"].apply(normalise_text)
+    justeat["_postcode_norm"] = justeat["postcode"].apply(normalise_postcode)
+
+    # Fallback: extract postcode from address if postcode column is empty
+    mask = justeat["_postcode_norm"] == ""
+    justeat.loc[mask, "_postcode_norm"] = justeat.loc[mask, "address"].apply(extract_uk_postcode)
+
+    justeat = justeat[
+        (justeat["url"].str.strip() != "")
+        & (justeat["name"].str.strip() != "")
+    ].copy()
+
+
+# ============================================================
+# Normalise FoodHub data
+# Expected columns: service,name,address,postcode,url,cuisines
+# ============================================================
+
+if not foodhub.empty:
+    for col in ["service", "name", "address", "postcode", "url", "cuisines"]:
+        if col not in foodhub.columns:
+            foodhub[col] = ""
+
+    foodhub["_name_norm"] = foodhub["name"].apply(normalise_text)
+    foodhub["_slug_norm"] = foodhub["name"].apply(lambda x: str(x).strip().lower())
+    foodhub["_address_norm"] = foodhub["address"].apply(normalise_text)
+    foodhub["_postcode_norm"] = foodhub["postcode"].apply(normalise_postcode)
+
+    mask = foodhub["_postcode_norm"] == ""
+    foodhub.loc[mask, "_postcode_norm"] = foodhub.loc[mask, "address"].apply(extract_uk_postcode)
+
+    foodhub = foodhub[
+        (foodhub["url"].str.strip() != "")
+        & (foodhub["name"].str.strip() != "")
+    ].copy()
+
+
+# ============================================================
+# Normalise Beelivery data
+# Expected columns: service,name,postcode,url
+# (Beelivery has no full address — postcode only)
+# ============================================================
+
+if not beelivery.empty:
+    for col in ["service", "name", "postcode", "url"]:
+        if col not in beelivery.columns:
+            beelivery[col] = ""
+
+    beelivery["_name_norm"] = beelivery["name"].apply(normalise_text)
+    beelivery["_slug_norm"] = beelivery["name"].apply(lambda x: str(x).strip().lower())
+    beelivery["_postcode_norm"] = beelivery["postcode"].apply(normalise_postcode)
+
+    beelivery = beelivery[
+        (beelivery["url"].str.strip() != "")
+        & (beelivery["name"].str.strip() != "")
+    ].copy()
+
+
+# ============================================================
 # Build lookup dictionaries for speed
 # ============================================================
 
@@ -249,6 +332,33 @@ for idx, row in deliveroo.iterrows():
 
     if city:
         deliveroo_by_city.setdefault(city, []).append((idx, row))
+
+
+# Just Eat and FoodHub: indexed by full postcode (same strategy as Uber Eats)
+justeat_by_postcode = {}
+if not justeat.empty:
+    for idx, row in justeat.iterrows():
+        postcode = row["_postcode_norm"]
+        if postcode:
+            justeat_by_postcode.setdefault(postcode, []).append((idx, row))
+
+foodhub_by_postcode = {}
+if not foodhub.empty:
+    for idx, row in foodhub.iterrows():
+        postcode = row["_postcode_norm"]
+        if postcode:
+            foodhub_by_postcode.setdefault(postcode, []).append((idx, row))
+
+# Beelivery: indexed by postcode area prefix (e.g. "BS1", "BS6")
+# because Beelivery stores postcode areas, not full postcodes.
+beelivery_by_area = {}
+if not beelivery.empty:
+    for idx, row in beelivery.iterrows():
+        postcode = row["_postcode_norm"]
+        # Extract area prefix: first 2-4 chars up to the inward code boundary
+        area = re.match(r"^([A-Z]{1,2}[0-9]{1,2})", postcode)
+        if area:
+            beelivery_by_area.setdefault(area.group(1), []).append((idx, row))
 
 
 # ============================================================
@@ -363,6 +473,113 @@ def score_deliveroo_match(listing, deliveroo_row):
         "address_score": "",
         "postcode_match": "",
         "area_match": area_match,
+        "exact_slug_match": exact_slug_match,
+    }
+
+
+def score_postcode_name_match(listing, platform_row):
+    """
+    Generic scorer for platforms that have full address + postcode.
+    Used for Just Eat and FoodHub (same strategy as Uber Eats).
+    """
+
+    listing_name_norm = listing["_name_norm"]
+    listing_address_norm = listing["_address_norm"]
+    listing_postcode = listing["_postcode_norm"]
+    listing_business_slug = listing["_business_slug_norm"]
+
+    plat_name_norm = platform_row["_name_norm"]
+    plat_address_norm = platform_row["_address_norm"]
+    plat_postcode = platform_row["_postcode_norm"]
+    plat_slug = platform_row["_slug_norm"]
+
+    name_score = fuzz.token_set_ratio(listing_name_norm, plat_name_norm)
+    slug_score = fuzz.token_set_ratio(listing_business_slug, plat_slug)
+    address_score = fuzz.token_set_ratio(listing_address_norm, plat_address_norm)
+
+    best_name_score = max(name_score, slug_score)
+
+    postcode_match = (
+        listing_postcode != ""
+        and plat_postcode != ""
+        and listing_postcode == plat_postcode
+    )
+
+    exact_slug_match = (
+        listing_business_slug != ""
+        and plat_slug != ""
+        and listing_business_slug == plat_slug
+    )
+
+    if postcode_match:
+        score = 45 + best_name_score * 0.40 + address_score * 0.15
+    else:
+        score = best_name_score * 0.55 + address_score * 0.45
+
+    if exact_slug_match:
+        score += 8
+
+    score = min(score, 100)
+
+    return {
+        "score": round(score, 2),
+        "name_score": round(name_score, 2),
+        "slug_score": round(slug_score, 2),
+        "address_score": round(address_score, 2),
+        "postcode_match": postcode_match,
+        "exact_slug_match": exact_slug_match,
+    }
+
+
+def score_beelivery_match(listing, beelivery_row):
+    """
+    Beelivery only has postcode area (e.g. BS6) and name.
+    Use postcode area match as a moderate anchor, then name fuzzy match.
+    """
+
+    listing_name_norm = listing["_name_norm"]
+    listing_postcode = listing["_postcode_norm"]
+    listing_business_slug = listing["_business_slug_norm"]
+
+    bee_name_norm = beelivery_row["_name_norm"]
+    bee_postcode = beelivery_row["_postcode_norm"]
+    bee_slug = beelivery_row["_slug_norm"]
+
+    name_score = fuzz.token_set_ratio(listing_name_norm, bee_name_norm)
+    slug_score = fuzz.token_set_ratio(listing_business_slug, bee_slug)
+    best_name_score = max(name_score, slug_score)
+
+    # Postcode area match: listing BS6 4AB vs beelivery BS64AB → compare prefix
+    listing_area_m = re.match(r"^([A-Z]{1,2}[0-9]{1,2})", listing_postcode)
+    bee_area_m = re.match(r"^([A-Z]{1,2}[0-9]{1,2})", bee_postcode)
+
+    area_match = (
+        listing_area_m and bee_area_m
+        and listing_area_m.group(1) == bee_area_m.group(1)
+    )
+
+    exact_slug_match = (
+        listing_business_slug != ""
+        and bee_slug != ""
+        and listing_business_slug == bee_slug
+    )
+
+    if area_match:
+        score = 35 + best_name_score * 0.65
+    else:
+        score = best_name_score * 0.90
+
+    if exact_slug_match:
+        score += 8
+
+    score = min(score, 100)
+
+    return {
+        "score": round(score, 2),
+        "name_score": round(name_score, 2),
+        "slug_score": round(slug_score, 2),
+        "address_score": "",
+        "postcode_match": area_match,
         "exact_slug_match": exact_slug_match,
     }
 
@@ -516,6 +733,195 @@ for listing_idx, listing in listings.iterrows():
             best["reason"] = "needs review"
 
         review_rows.append(best)
+
+
+# ------------------------------------------------------------
+# Match Just Eat
+# ------------------------------------------------------------
+
+if not justeat.empty:
+    for listing_idx, listing in listings.iterrows():
+
+        if not OVERWRITE_EXISTING and not empty_value(listing.get("delivery_justeat", "")):
+            continue
+
+        listing_postcode = listing["_postcode_norm"]
+        candidate_matches = []
+
+        if listing_postcode and listing_postcode in justeat_by_postcode:
+            candidates = justeat_by_postcode[listing_postcode]
+        else:
+            candidates = list(justeat.iterrows())
+
+        for plat_idx, plat_row in candidates:
+            scores = score_postcode_name_match(listing, plat_row)
+            if scores["score"] < 60:
+                continue
+            candidate_matches.append({
+                "service": "justeat",
+                "listing_index": listing_idx,
+                "listing_id": listing["id"],
+                "listing_name": listing["name"],
+                "listing_address": listing["address"],
+                "listing_city_slug": listing["city_slug"],
+                "listing_area_slug": listing["area_slug"],
+                "listing_business_slug": listing["business_slug"],
+                "delivery_name": plat_row["name"],
+                "delivery_address": plat_row["address"],
+                "delivery_city": "",
+                "delivery_area": "",
+                "url": plat_row["url"],
+                **scores,
+                "second_best_score": "",
+                "gap_to_second": "",
+                "auto_updated": False,
+                "reason": "",
+            })
+
+        best, second = get_best_and_second(candidate_matches)
+        if best:
+            second_score = second["score"] if second else None
+            gap = best["score"] - second_score if second else 999
+            best["second_best_score"] = second_score if second_score is not None else ""
+            best["gap_to_second"] = round(gap, 2)
+            should_update = (
+                best["score"] >= JUSTEAT_AUTO_THRESHOLD
+                and gap >= MIN_GAP_BETWEEN_BEST_AND_SECOND
+            )
+            if should_update:
+                listings.at[listing_idx, "delivery_justeat"] = best["url"]
+                best["auto_updated"] = True
+                best["reason"] = "high confidence just eat match"
+            else:
+                best["reason"] = "needs review"
+            review_rows.append(best)
+
+
+# ------------------------------------------------------------
+# Match FoodHub
+# ------------------------------------------------------------
+
+if not foodhub.empty:
+    for listing_idx, listing in listings.iterrows():
+
+        if not OVERWRITE_EXISTING and not empty_value(listing.get("delivery_foodhub", "")):
+            continue
+
+        listing_postcode = listing["_postcode_norm"]
+        candidate_matches = []
+
+        if listing_postcode and listing_postcode in foodhub_by_postcode:
+            candidates = foodhub_by_postcode[listing_postcode]
+        else:
+            candidates = list(foodhub.iterrows())
+
+        for plat_idx, plat_row in candidates:
+            scores = score_postcode_name_match(listing, plat_row)
+            if scores["score"] < 60:
+                continue
+            candidate_matches.append({
+                "service": "foodhub",
+                "listing_index": listing_idx,
+                "listing_id": listing["id"],
+                "listing_name": listing["name"],
+                "listing_address": listing["address"],
+                "listing_city_slug": listing["city_slug"],
+                "listing_area_slug": listing["area_slug"],
+                "listing_business_slug": listing["business_slug"],
+                "delivery_name": plat_row["name"],
+                "delivery_address": plat_row["address"],
+                "delivery_city": "",
+                "delivery_area": "",
+                "url": plat_row["url"],
+                **scores,
+                "second_best_score": "",
+                "gap_to_second": "",
+                "auto_updated": False,
+                "reason": "",
+            })
+
+        best, second = get_best_and_second(candidate_matches)
+        if best:
+            second_score = second["score"] if second else None
+            gap = best["score"] - second_score if second else 999
+            best["second_best_score"] = second_score if second_score is not None else ""
+            best["gap_to_second"] = round(gap, 2)
+            should_update = (
+                best["score"] >= FOODHUB_AUTO_THRESHOLD
+                and gap >= MIN_GAP_BETWEEN_BEST_AND_SECOND
+            )
+            if should_update:
+                listings.at[listing_idx, "delivery_foodhub"] = best["url"]
+                best["auto_updated"] = True
+                best["reason"] = "high confidence foodhub match"
+            else:
+                best["reason"] = "needs review"
+            review_rows.append(best)
+
+
+# ------------------------------------------------------------
+# Match Beelivery
+# ------------------------------------------------------------
+
+if not beelivery.empty:
+    for listing_idx, listing in listings.iterrows():
+
+        if not OVERWRITE_EXISTING and not empty_value(listing.get("delivery_beelivery", "")):
+            continue
+
+        listing_postcode = listing["_postcode_norm"]
+        listing_area_m = re.match(r"^([A-Z]{1,2}[0-9]{1,2})", listing_postcode) if listing_postcode else None
+        listing_area = listing_area_m.group(1) if listing_area_m else None
+
+        candidate_matches = []
+
+        if listing_area and listing_area in beelivery_by_area:
+            candidates = beelivery_by_area[listing_area]
+        else:
+            candidates = list(beelivery.iterrows())
+
+        for plat_idx, plat_row in candidates:
+            scores = score_beelivery_match(listing, plat_row)
+            if scores["score"] < 60:
+                continue
+            candidate_matches.append({
+                "service": "beelivery",
+                "listing_index": listing_idx,
+                "listing_id": listing["id"],
+                "listing_name": listing["name"],
+                "listing_address": listing["address"],
+                "listing_city_slug": listing["city_slug"],
+                "listing_area_slug": listing["area_slug"],
+                "listing_business_slug": listing["business_slug"],
+                "delivery_name": plat_row["name"],
+                "delivery_address": "",
+                "delivery_city": "",
+                "delivery_area": "",
+                "url": plat_row["url"],
+                **scores,
+                "second_best_score": "",
+                "gap_to_second": "",
+                "auto_updated": False,
+                "reason": "",
+            })
+
+        best, second = get_best_and_second(candidate_matches)
+        if best:
+            second_score = second["score"] if second else None
+            gap = best["score"] - second_score if second else 999
+            best["second_best_score"] = second_score if second_score is not None else ""
+            best["gap_to_second"] = round(gap, 2)
+            should_update = (
+                best["score"] >= BEELIVERY_AUTO_THRESHOLD
+                and gap >= MIN_GAP_BETWEEN_BEST_AND_SECOND
+            )
+            if should_update:
+                listings.at[listing_idx, "delivery_beelivery"] = best["url"]
+                best["auto_updated"] = True
+                best["reason"] = "high confidence beelivery match"
+            else:
+                best["reason"] = "needs review"
+            review_rows.append(best)
 
 
 # ============================================================
