@@ -36,20 +36,26 @@ import unicodedata
 import pandas as pd
 from rapidfuzz import fuzz
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _path(filename):
+    return os.path.join(_HERE, filename)
+
 
 # ============================================================
 # Config
 # ============================================================
 
-LISTINGS_CSV = "listings.csv"
-THEFORK_CSV = "thefork.csv"
-FIRSTTABLE_CSV = "firsttable.csv"
-QUANDOO_CSV = "quandoo.csv"
-DMN_CSV = "designmynight.csv"
-RESDIARY_CSV = "resdiary.csv"
+LISTINGS_CSV = _path("listings.csv")
+THEFORK_CSV = _path("thefork.csv")
+FIRSTTABLE_CSV = _path("firsttable.csv")
+QUANDOO_CSV = _path("quandoo.csv")
+DMN_CSV = _path("designmynight.csv")
+RESDIARY_CSV = _path("resdiary.csv")
 
-OUTPUT_LISTINGS_CSV = "listings_with_bookings.csv"
-OUTPUT_REVIEW_CSV = "booking_matches_review.csv"
+OUTPUT_LISTINGS_CSV = _path("listings_with_bookings.csv")
+OUTPUT_REVIEW_CSV = _path("booking_matches_review.csv")
 
 OVERWRITE_EXISTING = False
 
@@ -328,31 +334,44 @@ def _run_match(platform_name, platform_by_city, listing_col,
 # ============================================================
 
 print("Matching TheFork…")
-m = _run_match("thefork", thefork_by_city, "booking_thefork",
-               THEFORK_AUTO_THRESHOLD, has_address=True)
-print(f"  → {m} auto-updated")
+if not thefork.empty:
+    m = _run_match("thefork", thefork_by_city, "booking_thefork",
+                   THEFORK_AUTO_THRESHOLD, has_address=True)
+    print(f"  → {m} auto-updated")
+else:
+    print("  ⚠ Skipped (no data)")
 
 print("Matching First Table…")
-m = _run_match("firsttable", firsttable_by_city, "booking_firsttable",
-               FIRSTTABLE_AUTO_THRESHOLD, has_address=True)
-print(f"  → {m} auto-updated")
+if not firsttable.empty:
+    m = _run_match("firsttable", firsttable_by_city, "booking_firsttable",
+                   FIRSTTABLE_AUTO_THRESHOLD, has_address=True)
+    print(f"  → {m} auto-updated")
+else:
+    print("  ⚠ Skipped (no data)")
 
 print("Matching Quandoo…")
-m = _run_match("quandoo", quandoo_by_city, "booking_quandoo",
-               QUANDOO_AUTO_THRESHOLD, has_address=True)
-print(f"  → {m} auto-updated")
+if not quandoo.empty:
+    m = _run_match("quandoo", quandoo_by_city, "booking_quandoo",
+                   QUANDOO_AUTO_THRESHOLD, has_address=True)
+    print(f"  → {m} auto-updated")
+else:
+    print("  ⚠ Skipped (no data)")
 
 print("Matching DesignMyNight…")
-m = _run_match("designmynight", dmn_by_city, "booking_designmynight",
-               DMN_AUTO_THRESHOLD, has_address=True)
-print(f"  → {m} auto-updated")
+if not dmn.empty:
+    m = _run_match("designmynight", dmn_by_city, "booking_designmynight",
+                   DMN_AUTO_THRESHOLD, has_address=True)
+    print(f"  → {m} auto-updated")
+else:
+    print("  ⚠ Skipped (no data)")
 
-print("Matching ResDiary…")
-# ResDiary results are already per-listing targeted (from ddgs search),
-# so we use a tighter threshold and no-address mode.
-m = _run_match("resdiary", resdiary_by_city, "booking_resdiary",
-               RESDIARY_AUTO_THRESHOLD, has_address=False)
-print(f"  → {m} auto-updated")
+print("Matching ResDiary/DishCult…")
+if not resdiary.empty:
+    m = _run_match("resdiary", resdiary_by_city, "booking_resdiary",
+                   RESDIARY_AUTO_THRESHOLD, has_address=False)
+    print(f"  → {m} auto-updated")
+else:
+    print("  ⚠ Skipped (no data)")
 
 
 # ============================================================

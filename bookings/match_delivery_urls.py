@@ -4,20 +4,26 @@ import unicodedata
 import pandas as pd
 from rapidfuzz import fuzz
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _path(filename):
+    return os.path.join(_HERE, filename)
+
 
 # ============================================================
 # Config
 # ============================================================
 
-LISTINGS_CSV = "listings.csv"
-UBER_CSV = "uber-eats.csv"
-DELIVEROO_CSV = "deliveroo.csv"
-JUSTEAT_CSV = "justeat.csv"
-FOODHUB_CSV = "foodhub.csv"
-BEELIVERY_CSV = "beelivery.csv"
+LISTINGS_CSV = _path("listings_with_bookings.csv") if os.path.exists(_path("listings_with_bookings.csv")) else _path("listings.csv")
+UBER_CSV = _path("uber-eats.csv")
+DELIVEROO_CSV = _path("deliveroo.csv")
+JUSTEAT_CSV = _path("justeat.csv")
+FOODHUB_CSV = _path("foodhub.csv")
+BEELIVERY_CSV = _path("beelivery.csv")
 
-OUTPUT_LISTINGS_CSV = "listings.updated.csv"
-OUTPUT_REVIEW_CSV = "delivery_matches_review.csv"
+OUTPUT_LISTINGS_CSV = _path("listings_with_bookings.csv")
+OUTPUT_REVIEW_CSV = _path("delivery_matches_review.csv")
 
 # If False, existing values will not be replaced
 OVERWRITE_EXISTING = False
@@ -145,6 +151,7 @@ def get_best_and_second(matches):
 # Load CSVs
 # ============================================================
 
+print(f"Loading listings from: {LISTINGS_CSV}")
 listings = pd.read_csv(LISTINGS_CSV, dtype=str).fillna("")
 uber = pd.read_csv(UBER_CSV, dtype=str).fillna("") if os.path.exists(UBER_CSV) else pd.DataFrame()
 deliveroo = pd.read_csv(DELIVEROO_CSV, dtype=str).fillna("") if os.path.exists(DELIVEROO_CSV) else pd.DataFrame()
