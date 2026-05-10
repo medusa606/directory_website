@@ -86,6 +86,10 @@ header h1 { font-size: 0.95rem; font-weight: 600; flex: 1; min-width: 140px; }
 .filter-btn:hover { border-color: #6366f1; color: #6366f1; }
 .filter-btn.active { background: #1a1a2e; border-color: #1a1a2e; color: #fff; }
 .filter-btn.submissions-btn.active { background: #f59e0b; border-color: #f59e0b; color: #fff; }
+.label-search-link { color: inherit; text-decoration: underline dotted #9ca3af; }
+.label-search-link:hover { color: #6366f1; text-decoration: underline; }
+.field-empty input, .field-empty textarea { background: #fff5f5; border-color: #fca5a5; }
+.field-empty .edit-label { color: #ef4444; }
 .filter-sep { width: 1px; background: #e4e7ec; margin: 0 4px; align-self: stretch; }
 .search-box {
   margin-left: auto; padding: 5px 12px; border: 1.5px solid #d1d5db;
@@ -497,11 +501,16 @@ async function doLogin() {
 }
 
 async function onLogin(user) {
+  // Only do a full load on a fresh login — Supabase fires SIGNED_IN again on
+  // token refresh (e.g. tab re-focus), which would wipe _editState mid-edit.
+  const isNewLogin = !currentUser || currentUser.id !== user.id;
   currentUser = user;
   document.getElementById("login-screen").classList.add("hidden");
   document.getElementById("app").classList.add("visible");
   document.getElementById("curator-badge").textContent = "✏ " + user.email;
-  await loadData();
+  if (isNewLogin) {
+    await loadData();
+  }
 }
 
 async function doLogout() {
@@ -626,7 +635,12 @@ function setFilter(type, value, btn) {
     if (allBtn) { setFilter("view", "all", allBtn); return; }
   }
   activeFilters[type] = value;
-  btn.closest(".filter-group").querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  if (type === "view") {
+    // Clear all view-related buttons: the main filter-view group AND submissions/claims group
+    document.querySelectorAll("#filter-view .filter-btn, .filter-btn.submissions-btn").forEach(b => b.classList.remove("active"));
+  } else {
+    btn.closest(".filter-group").querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  }
   btn.classList.add("active");
   // Cross-reset: if switching to submissions/claims, clear status filter
   if (value === "submissions" || value === "claims") {
@@ -918,6 +932,13 @@ function initEditState(id, row) {
   };
 }
 
+// Google search helper for finding a listing on a specific platform
+function glSearch(row, term) {
+  const area = (row.area_slug || "").replace(/-/g, " ");
+  const q = ["bristol", area, row.name || "", term].filter(Boolean).join(" ");
+  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+}
+
 function buildEditPanel(row) {
   const s = _editState[row.id];
   if (!s) return "";
@@ -1036,7 +1057,7 @@ function buildEditPanel(row) {
           onkeydown="_onTagKey(event,'${row.id}')">
       </div>
     </div>
-    <div class="edit-row">
+    <div class="edit-row${!s.description ? ' field-empty' : ''}">
       <div class="edit-label">Description</div>
       <textarea id="ed-desc-${row.id}" rows="3">${esc(s.description)}</textarea>
     </div>
@@ -1063,27 +1084,27 @@ function buildEditPanel(row) {
       </label>
     </div>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
-    <div class="edit-row">
+    <div class="edit-row${!s.email ? ' field-empty' : ''}">
       <div class="edit-label">Email</div>
       <input type="text" id="ed-email-${row.id}" value="${esc(s.email)}" placeholder="email@example.com">
     </div>
-    <div class="edit-row">
+    <div class="edit-row${!s.phone ? ' field-empty' : ''}">
       <div class="edit-label">Phone</div>
       <input type="text" id="ed-phone-${row.id}" value="${esc(s.phone)}" placeholder="+44 ...">
     </div>
-    <div class="edit-row">
+    <div class="edit-row${!s.website ? ' field-empty' : ''}">
       <div class="edit-label">Website</div>
       <input type="url" id="ed-website-${row.id}" value="${esc(s.website)}" placeholder="https://...">
     </div>
-    <div class="edit-row">
+    <div class="edit-row${!s.address ? ' field-empty' : ''}">
       <div class="edit-label">Address</div>
       <textarea id="ed-addr-${row.id}" rows="2">${esc(s.address)}</textarea>
     </div>
-    <div class="edit-row">
+    <div class="edit-row${!s.google_maps_url ? ' field-empty' : ''}">
       <div class="edit-label">Google Maps URL</div>
       <input type="url" id="ed-gmaps-${row.id}" value="${esc(s.google_maps_url)}" placeholder="https://maps.google.com/?q=...">
     </div>
-    <div class="edit-row">
+    <div class="edit-row${!s.opening_hours ? ' field-empty' : ''}">
       <div class="edit-label">Opening Hours</div>
       <textarea id="ed-hours-${row.id}" rows="3" placeholder="Mon–Fri: 9–5...">${esc(s.opening_hours)}</textarea>
     </div>
@@ -1112,23 +1133,23 @@ function buildEditPanel(row) {
       <div class="edit-label" style="font-weight:600;color:#374151;">🚚 Delivery Platforms <span class="edit-label-hint">paste the full listing URL from each platform</span></div>
     </div>
     <div class="edit-row">
-      <div class="edit-label">Deliveroo</div>
+      <div class="edit-label"><a href="${glSearch(row,'deliveroo')}" target="_blank" rel="noopener" class="label-search-link">Deliveroo</a></div>
       <input type="url" id="ed-del-deliveroo-${row.id}" value="${esc(s.delivery_deliveroo)}" placeholder="https://deliveroo.co.uk/menu/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">Uber Eats</div>
+      <div class="edit-label"><a href="${glSearch(row,'uber eats')}" target="_blank" rel="noopener" class="label-search-link">Uber Eats</a></div>
       <input type="url" id="ed-del-ubereats-${row.id}" value="${esc(s.delivery_ubereats)}" placeholder="https://www.ubereats.com/gb/store/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">Just Eat</div>
+      <div class="edit-label"><a href="${glSearch(row,'just eat')}" target="_blank" rel="noopener" class="label-search-link">Just Eat</a></div>
       <input type="url" id="ed-del-justeat-${row.id}" value="${esc(s.delivery_justeat)}" placeholder="https://www.just-eat.co.uk/restaurants-...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">Foodhub</div>
+      <div class="edit-label"><a href="${glSearch(row,'foodhub')}" target="_blank" rel="noopener" class="label-search-link">Foodhub</a></div>
       <input type="url" id="ed-del-foodhub-${row.id}" value="${esc(s.delivery_foodhub)}" placeholder="https://foodhub.co.uk/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">Beelivery</div>
+      <div class="edit-label"><a href="${glSearch(row,'beelivery')}" target="_blank" rel="noopener" class="label-search-link">Beelivery</a></div>
       <input type="url" id="ed-del-beelivery-${row.id}" value="${esc(s.delivery_beelivery)}" placeholder="https://www.beelivery.co.uk/...">
     </div>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
@@ -1136,60 +1157,60 @@ function buildEditPanel(row) {
       <div class="edit-label" style="font-weight:600;color:#374151;">📍 Table Reservations <span class="edit-label-hint">paste the full booking page URL</span></div>
     </div>
     <div class="edit-row">
-      <div class="edit-label">OpenTable</div>
+      <div class="edit-label"><a href="${glSearch(row,'opentable')}" target="_blank" rel="noopener" class="label-search-link">OpenTable</a></div>
       <input type="url" id="ed-bk-opentable-${row.id}" value="${esc(s.booking_opentable)}" placeholder="https://www.opentable.co.uk/r/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">First Table</div>
+      <div class="edit-label"><a href="${glSearch(row,'first table')}" target="_blank" rel="noopener" class="label-search-link">First Table</a></div>
       <input type="url" id="ed-bk-firsttable-${row.id}" value="${esc(s.booking_firsttable)}" placeholder="https://firsttable.co.uk/restaurant/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">ResDiary</div>
+      <div class="edit-label"><a href="${glSearch(row,'resdiary')}" target="_blank" rel="noopener" class="label-search-link">ResDiary</a></div>
       <input type="url" id="ed-bk-resdiary-${row.id}" value="${esc(s.booking_resdiary)}" placeholder="https://www.resdiary.com/restaurant/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">TheFork</div>
+      <div class="edit-label"><a href="${glSearch(row,'the fork restaurant')}" target="_blank" rel="noopener" class="label-search-link">TheFork</a></div>
       <input type="url" id="ed-bk-thefork-${row.id}" value="${esc(s.booking_thefork)}" placeholder="https://www.thefork.co.uk/restaurant/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">SevenRooms</div>
+      <div class="edit-label"><a href="${glSearch(row,'sevenrooms')}" target="_blank" rel="noopener" class="label-search-link">SevenRooms</a></div>
       <input type="url" id="ed-bk-sevenrooms-${row.id}" value="${esc(s.booking_sevenrooms)}" placeholder="https://sevenrooms.com/reservations/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">Quandoo</div>
+      <div class="edit-label"><a href="${glSearch(row,'quandoo')}" target="_blank" rel="noopener" class="label-search-link">Quandoo</a></div>
       <input type="url" id="ed-bk-quandoo-${row.id}" value="${esc(s.booking_quandoo)}" placeholder="https://www.quandoo.co.uk/place/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">Resy</div>
+      <div class="edit-label"><a href="${glSearch(row,'resy')}" target="_blank" rel="noopener" class="label-search-link">Resy</a></div>
       <input type="url" id="ed-bk-resy-${row.id}" value="${esc(s.booking_resy)}" placeholder="https://resy.com/cities/lon/venues/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">DesignMyNight</div>
+      <div class="edit-label"><a href="${glSearch(row,'design my night')}" target="_blank" rel="noopener" class="label-search-link">DesignMyNight</a></div>
       <input type="url" id="ed-bk-designmynight-${row.id}" value="${esc(s.booking_designmynight)}" placeholder="https://www.designmynight.com/london/bars/...">
     </div>
     <hr style="border:none;border-top:1px solid #f3f4f6;margin:4px 0;">
     <div class="edit-row">
-      <div class="edit-label">Instagram</div>
+      <div class="edit-label"><a href="${glSearch(row,'instagram')}" target="_blank" rel="noopener" class="label-search-link">Instagram</a></div>
       <input type="url" id="ed-ig-${row.id}" value="${esc(s.social_instagram)}" placeholder="https://www.instagram.com/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">Facebook</div>
+      <div class="edit-label"><a href="${glSearch(row,'facebook')}" target="_blank" rel="noopener" class="label-search-link">Facebook</a></div>
       <input type="url" id="ed-fb-${row.id}" value="${esc(s.social_facebook)}" placeholder="https://www.facebook.com/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">Twitter / X</div>
+      <div class="edit-label"><a href="${glSearch(row,'twitter')}" target="_blank" rel="noopener" class="label-search-link">Twitter / X</a></div>
       <input type="url" id="ed-tw-${row.id}" value="${esc(s.social_twitter)}" placeholder="https://twitter.com/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">TikTok</div>
+      <div class="edit-label"><a href="${glSearch(row,'tiktok')}" target="_blank" rel="noopener" class="label-search-link">TikTok</a></div>
       <input type="url" id="ed-tk-${row.id}" value="${esc(s.social_tiktok)}" placeholder="https://www.tiktok.com/@...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">LinkedIn</div>
+      <div class="edit-label"><a href="${glSearch(row,'linkedin')}" target="_blank" rel="noopener" class="label-search-link">LinkedIn</a></div>
       <input type="url" id="ed-li-${row.id}" value="${esc(s.social_linkedin)}" placeholder="https://www.linkedin.com/company/...">
     </div>
     <div class="edit-row">
-      <div class="edit-label">YouTube</div>
+      <div class="edit-label"><a href="${glSearch(row,'youtube')}" target="_blank" rel="noopener" class="label-search-link">YouTube</a></div>
       <input type="url" id="ed-yt-${row.id}" value="${esc(s.social_youtube)}" placeholder="https://www.youtube.com/...">
     </div>
     <div class="edit-actions">
