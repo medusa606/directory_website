@@ -521,52 +521,70 @@ function onLogout() {
 }
 
 // ── Data Loading ────────────────────────────────────────────────────────────
+let _dataLoading = false;
 async function loadData() {
+  if (_dataLoading) return;
+  _dataLoading = true;
   showLoadingMsg("Loading listings from database…");
   document.getElementById("cards-container").style.display = "none";
   document.getElementById("footer").style.display = "none";
+  try {
+    // Purge expired locks
+    const expiry = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    await db.from("listing_locks").delete().lt("locked_at", expiry);
 
-  // Purge expired locks
-  const expiry = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  await db.from("listing_locks").delete().lt("locked_at", expiry);
+    // Load locks
+    const { data: locks } = await db.from("listing_locks").select("*");
+    currentLocks = {};
+    (locks || []).forEach(l => { currentLocks[l.listing_id] = l; });
 
-  // Load locks
-  const { data: locks } = await db.from("listing_locks").select("*");
-  currentLocks = {};
-  (locks || []).forEach(l => { currentLocks[l.listing_id] = l; });
+    // Load listings in batches of 1000
+    let rows = [];
+    let from = 0;
+    while (true) {
+      updateLoadingDetail(`Loading listings… (${rows.length} so far)`);
+      const { data, error } = await db
+        .from("listings")
+        .select("*")
+        .order("name")
+        .range(from, from + 999);
+      if (error) { showToast("Error loading listings: " + error.message, "error"); return; }
+      rows = rows.concat(data || []);
+      if (!data || data.length < 1000) break;
+      from += 1000;
+    }
 
-  // Load listings in batches of 1000
-  let rows = [];
-  let from = 0;
-  while (true) {
-    updateLoadingDetail(`Loading listings… (${rows.length} so far)`);
-    const { data, error } = await db
-      .from("listings")
-      .select("*")
-      .order("name")
-      .range(from, from + 999);
-    if (error) { showToast("Error loading listings: " + error.message, "error"); return; }
-    rows = rows.concat(data || []);
-    if (!data || data.length < 1000) break;
-    from += 1000;
+    allListings = rows;
+    _editState  = {};
+
+    // Load owner submissions and claims
+    await loadOwnerQueues();
+
+    updateLoadingDetail(`Loaded ${rows.length} listings.`);
+    document.getElementById("stat-total").textContent = rows.length;
+    applyFilters();
+    updateStats();
+
+    // Heartbeat: refresh our own locks every 4 minutes to prevent expiry
+    clearInterval(lockHeartbeat);
+    lockHeartbeat = setInterval(refreshMyLocks, 4 * 60 * 1000);
+  } finally {
+    hideLoadingMsg();
+    _dataLoading = false;
   }
-
-  allListings = rows;
-  _editState  = {};
-
-  // Load owner submissions and claims
-  await loadOwnerQueues();
-
-  updateLoadingDetail(`Loaded ${rows.length} listings.`);
-  hideLoadingMsg();
-  document.getElementById("stat-total").textContent = rows.length;
-  applyFilters();
-  updateStats();
-
-  // Heartbeat: refresh our own locks every 4 minutes to prevent expiry
-  clearInterval(lockHeartbeat);
-  lockHeartbeat = setInterval(refreshMyLocks, 4 * 60 * 1000);
 }
+
+// Recover gracefully if page is restored from browser back-forward cache
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted && currentUser) {
+    hideLoadingMsg();
+    if (allListings.length > 0) {
+      document.getElementById("cards-container").style.display = "";
+      document.getElementById("footer").style.display = "";
+      renderPage();
+    }
+  }
+});
 
 async function refreshData() {
   await releaseAllMyLocks();
@@ -602,6 +620,11 @@ async function loadOwnerQueues() {
 
 // ── Filters ─────────────────────────────────────────────────────────────────
 function setFilter(type, value, btn) {
+  // Toggle off submissions/claims if clicking the already-active button
+  if (type === "view" && activeFilters.view === value && value !== "all") {
+    const allBtn = document.querySelector("#filter-view [data-filter='all']");
+    if (allBtn) { setFilter("view", "all", allBtn); return; }
+  }
   activeFilters[type] = value;
   btn.closest(".filter-group").querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
@@ -676,12 +699,11 @@ function changePage(dir) {
 function renderPage() {
   const container = document.getElementById("cards-container");
   const total     = filtered.length;
-  const item      = filtered[currentPage];
 
   container.style.display = "";
   document.getElementById("footer").style.display = "";
 
-  if (!item) {
+  if (total === 0) {
     container.innerHTML = `<div style="text-align:center;padding:60px;color:#888;">
       <p style="font-size:1rem;">No listings match this filter.</p>
     </div>`;
@@ -691,6 +713,18 @@ function renderPage() {
     return;
   }
 
+  // In search mode, show all matching listing cards stacked (up to 50)
+  if (searchQuery && !filtered[0]?._type) {
+    const shown = filtered.slice(0, 50);
+    container.innerHTML = shown.map(row => buildListingCard(row)).join("");
+    const label = total > 50 ? `${total} results (showing first 50)` : `${total} result${total !== 1 ? "s" : ""}`;
+    document.getElementById("page-label").textContent = label;
+    document.getElementById("btn-prev").disabled = true;
+    document.getElementById("btn-next").disabled = true;
+    return;
+  }
+
+  const item = filtered[currentPage];
   if (item._type === "submission") {
     container.innerHTML = buildSubmissionCard(item);
   } else if (item._type === "claim") {
@@ -1336,15 +1370,7 @@ async function saveEdit(id) {
     return;
   }
 
-  // Write audit log
-  await db.from("curation_audit").insert({
-    listing_id:    id,
-    curator_email: currentUser.email,
-    curator_id:    currentUser.id,
-    changes:       changes,
-    source:        "curator",
-  });
-
+  // Note: audit log is written by the Postgres trigger (fn_listings_audit_trigger)
   // Update local listing data
   Object.assign(row, updates);
 
